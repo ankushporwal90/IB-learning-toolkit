@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     groq_model: str = "llama-3.1-8b-instant"
     app_env: str = "development"
     log_level: str = "INFO"
+    sec_user_agent: str = "AISECFilingAnalyzer your.email@example.com"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
