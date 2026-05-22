@@ -34,5 +34,6 @@ class LLMService:
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.2,
+            max_tokens=1_000,
         )
         return response.choices[0].message.content or ""

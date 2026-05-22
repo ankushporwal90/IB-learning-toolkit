@@ -158,7 +158,11 @@ def render_available_documents() -> None:
 
     if st.button("Generate Phase 1 Summary", type="primary"):
         with st.spinner("Asking Groq to summarize the filing..."):
-            st.session_state.phase1_summary = summarize_filing(extraction)
+            try:
+                st.session_state.phase1_summary = summarize_filing(extraction)
+            except Exception as exc:
+                st.error(f"Could not generate summary: {type(exc).__name__}: {exc}")
+                return
 
     if st.session_state.get("phase1_summary"):
         st.markdown("#### AI Filing Summary")

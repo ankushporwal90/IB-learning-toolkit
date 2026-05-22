@@ -75,3 +75,16 @@ def test_truncate_for_prompt_marks_truncated_text() -> None:
 
     assert truncated.startswith("aaaaaaaaaa")
     assert "Text truncated" in truncated
+
+
+def test_phase1_prompt_limit_is_free_tier_friendly() -> None:
+    extraction = FilingExtractionResult(
+        document_name="large-10q",
+        text="Revenue increased. " * 2000,
+        page_count=1,
+        extracted_page_count=1,
+    )
+
+    prompt = build_filing_summary_prompt(extraction)
+
+    assert len(prompt) < 11_000

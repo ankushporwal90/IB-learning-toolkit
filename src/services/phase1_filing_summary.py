@@ -13,7 +13,7 @@ from pypdf import PdfReader
 from src.services.llm_service import LLMService
 
 
-MAX_PROMPT_CHARACTERS = 18_000
+MAX_PROMPT_CHARACTERS = 9_000
 
 
 @dataclass
@@ -97,7 +97,14 @@ def summarize_filing(
         "avoid unsupported claims, and include a brief educational note when useful."
     )
     user_prompt = build_filing_summary_prompt(extraction)
-    return llm.generate(system_prompt=system_prompt, user_prompt=user_prompt)
+    try:
+        return llm.generate(system_prompt=system_prompt, user_prompt=user_prompt)
+    except Exception as exc:
+        return (
+            "The LLM request failed. For Phase 1, the most common cause is a free-tier "
+            "token limit when summarizing long SEC filings. The app now sends a shorter "
+            f"document excerpt, but this request still failed with: {type(exc).__name__}: {exc}"
+        )
 
 
 def clean_text(text: str) -> str:
@@ -112,7 +119,7 @@ def truncate_for_prompt(text: str, max_characters: int = MAX_PROMPT_CHARACTERS) 
     cleaned = clean_text(text)
     if len(cleaned) <= max_characters:
         return cleaned
-    return cleaned[:max_characters] + "\n\n[Text truncated for Phase 1 MVP prompt size.]"
+    return cleaned[:max_characters] + "\n\n[Text truncated for Phase 1 prompt size.]"
 
 
 def build_unconfigured_groq_message(extraction: FilingExtractionResult) -> str:
