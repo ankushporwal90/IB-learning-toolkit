@@ -17,6 +17,11 @@ from src.services.financial_analysis_service import (
     FinancialAnalysisResult,
     analyze_financial_document,
 )
+from src.rag.pipeline import (
+    RagPipeline,
+    RetrievedChunk,
+    answer_question_with_rag,
+)
 from src.services.phase1_filing_summary import extract_pdf_text, summarize_filing
 from src.services.sec_edgar_service import (
     fetch_latest_annual_and_quarterly_filings,
@@ -35,8 +40,8 @@ def render_phase1_mvp() -> None:
 
     st.title("AI SEC Filing + Earnings Call Analyzer")
     st.caption(
-        "Phase 2: upload a filing PDF or fetch the latest SEC 10-K and 10-Q, "
-        "then generate summaries and structured financial analysis."
+        "Phase 3: upload a filing PDF or fetch the latest SEC 10-K and 10-Q, "
+        "then summarize, analyze, and ask cited RAG questions."
     )
 
     st.warning(
@@ -45,20 +50,20 @@ def render_phase1_mvp() -> None:
     )
 
     with st.sidebar:
-        st.header("Phase 2")
+        st.header("Phase 3")
         st.write("Current scope:")
         st.write("- PDF upload")
         st.write("- Latest 10-K and 10-Q fetch")
         st.write("- Text extraction")
         st.write("- Groq summary")
         st.write("- Structured finance analysis")
-        st.write("- No RAG yet")
+        st.write("- ChromaDB RAG with citations")
 
     st.markdown("#### Why this phase matters")
     st.write(
-        "Phase 2 turns a generic filing summary into analyst-style structured output. "
-        "That matters because finance workflows need reusable sections: revenue drivers, "
-        "risks, MD&A themes, key metrics, tone, and investment insights."
+        "Phase 3 adds RAG, which means answers are grounded in retrieved filing chunks "
+        "instead of one shortened excerpt. This is important in finance because users "
+        "need evidence and citations for risks, MD&A, revenue drivers, and metrics."
     )
 
     input_tab, sec_tab = st.tabs(["Upload PDF", "Fetch SEC Filings"])
@@ -161,7 +166,7 @@ def render_available_documents() -> None:
     with st.expander("Preview extracted text"):
         st.write(extraction.text[:3_000] + ("..." if len(extraction.text) > 3_000 else ""))
 
-    action_cols = st.columns(2)
+    action_cols = st.columns(3)
     if action_cols[0].button("Generate Phase 1 Summary", type="secondary"):
         with st.spinner("Asking Groq to summarize the filing..."):
             try:
@@ -174,7 +179,17 @@ def render_available_documents() -> None:
         with st.spinner("Extracting structured financial intelligence..."):
             st.session_state.phase2_analysis = analyze_financial_document(extraction)
 
-    result_tab, analysis_tab = st.tabs(["Summary", "Financial Intelligence"])
+    if action_cols[2].button("Index for RAG", type="secondary"):
+        with st.spinner("Chunking, embedding, and indexing the selected document..."):
+            try:
+                chunk_count = get_rag_pipeline().ingest_extraction(extraction)
+            except Exception as exc:
+                st.error(f"Could not index document for RAG: {type(exc).__name__}: {exc}")
+                return
+        st.session_state.last_indexed_document = extraction.document_name
+        st.success(f"Indexed {chunk_count} chunks for retrieval.")
+
+    result_tab, analysis_tab, rag_tab = st.tabs(["Summary", "Financial Intelligence", "RAG Q&A"])
 
     with result_tab:
         if st.session_state.get("phase1_summary"):
@@ -189,6 +204,9 @@ def render_available_documents() -> None:
             render_financial_analysis(analysis)
         else:
             st.info("Generate Phase 2 financial analysis to see structured analyst outputs.")
+
+    with rag_tab:
+        render_rag_qa()
 
 
 def render_extraction_metrics(extraction: object) -> None:
@@ -268,6 +286,57 @@ def render_limitations(analysis: FinancialAnalysisResult) -> None:
         return
     st.markdown("#### Limitations")
     render_bullets(analysis.limitations, "No limitations were provided.")
+
+
+def get_rag_pipeline() -> RagPipeline:
+    """Create one RAG pipeline per Streamlit session."""
+
+    if "rag_pipeline" not in st.session_state:
+        st.session_state.rag_pipeline = RagPipeline()
+    return st.session_state.rag_pipeline
+
+
+def render_rag_qa() -> None:
+    """Render citation-aware RAG question answering."""
+
+    rag_pipeline = get_rag_pipeline()
+    st.markdown("#### Citation-Aware Filing Q&A")
+    st.metric("Indexed Chunks", rag_pipeline.indexed_chunk_count())
+
+    last_indexed = st.session_state.get("last_indexed_document")
+    if last_indexed:
+        st.caption(f"Latest indexed document: {last_indexed}")
+    else:
+        st.info("Click `Index for RAG` on a selected document before asking questions.")
+
+    question = st.text_input(
+        "Ask a question about the indexed filing",
+        value="What are the most important risk factors discussed?",
+    )
+
+    if st.button("Ask with RAG", type="primary"):
+        with st.spinner("Retrieving relevant chunks and generating a cited answer..."):
+            chunks = rag_pipeline.retrieve(question, top_k=5)
+            answer = answer_question_with_rag(question, chunks)
+        st.session_state.rag_answer = answer
+        st.session_state.rag_sources = chunks
+
+    if st.session_state.get("rag_answer"):
+        st.markdown("#### Answer")
+        st.write(st.session_state.rag_answer)
+        render_rag_sources(st.session_state.get("rag_sources", []))
+
+
+def render_rag_sources(chunks: list[RetrievedChunk]) -> None:
+    """Display retrieved chunks as citations."""
+
+    if not chunks:
+        return
+    st.markdown("#### Retrieved Sources")
+    for index, chunk in enumerate(chunks, start=1):
+        distance = f"{chunk.distance:.4f}" if chunk.distance is not None else "n/a"
+        with st.expander(f"Source {index}: {chunk.citation} | distance {distance}"):
+            st.write(chunk.text)
 
 
 if __name__ == "__main__":
