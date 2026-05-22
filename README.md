@@ -8,10 +8,12 @@ Current scope:
 - Fetch the latest SEC 10-K and 10-Q by ticker
 - Choose which extracted document to summarize
 - Generate a Groq-powered finance summary
+- Generate structured financial intelligence across revenue, risks, MD&A, metrics, tone, and insights
 
 Start here:
 
 - Phase 1 guide: `docs/PHASE_1_BEGINNER_MVP.md`
+- Phase 2 guide: `docs/PHASE_2_FINANCIAL_INTELLIGENCE.md`
 - Streamlit app: `app/main.py`
 
 ## Run Locally
