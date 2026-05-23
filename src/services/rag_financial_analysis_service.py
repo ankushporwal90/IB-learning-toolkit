@@ -94,11 +94,22 @@ def analyze_financial_document_with_rag(
 
     sections: dict[str, RagSectionAnalysis] = {}
     for key, (title, question) in SECTION_QUERIES.items():
-        chunks = rag_pipeline.retrieve(
-            question=question,
-            top_k=top_k,
-            document_name=extraction.document_name,
-        )
+        try:
+            chunks = rag_pipeline.retrieve(
+                question=question,
+                top_k=top_k,
+                document_name=extraction.document_name,
+            )
+        except Exception as exc:
+            sections[key] = RagSectionAnalysis(
+                title=title,
+                question=question,
+                limitations=[
+                    "Retrieval failed before the model could analyze this section.",
+                    f"{type(exc).__name__}: {exc}",
+                ],
+            )
+            continue
         sections[key] = analyze_rag_section(
             title=title,
             question=question,

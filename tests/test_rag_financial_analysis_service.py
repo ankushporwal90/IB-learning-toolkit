@@ -30,6 +30,16 @@ class FakeRagPipeline:
         ]
 
 
+class FailingRagPipeline:
+    def retrieve(
+        self,
+        question: str,
+        top_k: int = 4,
+        document_name: str | None = None,
+    ) -> list[RetrievedChunk]:
+        raise AttributeError("'RustBindingsAPI' object has no attribute 'bindings'")
+
+
 class FakeConfiguredLLM:
     def is_configured(self) -> bool:
         return True
@@ -134,3 +144,21 @@ def test_analyze_financial_document_with_rag_retrieves_each_section() -> None:
     assert set(rag_pipeline.document_names) == {"AAPL 10-Q"}
     assert result.revenue.findings[0].citation == "[Source 1]"
     assert result.document_name == "AAPL 10-Q"
+
+
+def test_analyze_financial_document_with_rag_handles_retrieval_failure() -> None:
+    extraction = FilingExtractionResult(
+        document_name="AAPL 10-Q",
+        text="Revenue increased.",
+        page_count=1,
+        extracted_page_count=1,
+    )
+
+    result = analyze_financial_document_with_rag(
+        extraction=extraction,
+        rag_pipeline=FailingRagPipeline(),
+        llm_service=FakeConfiguredLLM(),
+    )
+
+    assert "Retrieval failed" in result.revenue.limitations[0]
+    assert "RustBindingsAPI" in result.revenue.limitations[1]

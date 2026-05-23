@@ -196,6 +196,9 @@ def render_available_documents() -> None:
         st.success(f"Indexed {chunk_count} chunks for retrieval.")
 
     if action_cols[3].button("Generate RAG Financial Intelligence", type="primary"):
+        if st.session_state.get("last_indexed_document") != extraction.document_name:
+            st.warning("Index the selected document for RAG before generating RAG financial intelligence.")
+            return
         with st.spinner("Retrieving targeted filing evidence and generating cited finance tabs..."):
             try:
                 st.session_state.rag_financial_analysis = analyze_financial_document_with_rag(
@@ -330,7 +333,17 @@ def render_rag_qa() -> None:
 
     rag_pipeline = get_rag_pipeline()
     st.markdown("#### Citation-Aware Filing Q&A")
-    st.metric("Indexed Chunks", rag_pipeline.indexed_chunk_count())
+    try:
+        indexed_chunks = rag_pipeline.indexed_chunk_count()
+    except Exception as exc:
+        st.error(f"Could not read RAG index: {type(exc).__name__}: {exc}")
+        if st.button("Reset RAG Connection"):
+            reset_rag_session()
+        return
+
+    st.metric("Indexed Chunks", indexed_chunks)
+    if st.button("Reset RAG Connection"):
+        reset_rag_session()
 
     last_indexed = st.session_state.get("last_indexed_document")
     if last_indexed:
@@ -345,8 +358,12 @@ def render_rag_qa() -> None:
 
     if st.button("Ask with RAG", type="primary"):
         with st.spinner("Retrieving relevant chunks and generating a cited answer..."):
-            chunks = rag_pipeline.retrieve(question, top_k=5)
-            answer = answer_question_with_rag(question, chunks)
+            try:
+                chunks = rag_pipeline.retrieve(question, top_k=5)
+                answer = answer_question_with_rag(question, chunks)
+            except Exception as exc:
+                st.error(f"RAG retrieval failed: {type(exc).__name__}: {exc}")
+                return
         st.session_state.rag_answer = answer
         st.session_state.rag_sources = chunks
 
@@ -366,6 +383,18 @@ def render_rag_sources(chunks: list[RetrievedChunk]) -> None:
         distance = f"{chunk.distance:.4f}" if chunk.distance is not None else "n/a"
         with st.expander(f"Source {index}: {chunk.citation} | distance {distance}"):
             st.write(chunk.text)
+
+
+def reset_rag_session() -> None:
+    """Reset Streamlit's RAG objects after a local Chroma runtime issue."""
+
+    st.session_state.pop("rag_pipeline", None)
+    st.session_state.pop("rag_answer", None)
+    st.session_state.pop("rag_sources", None)
+    st.session_state.pop("rag_financial_analysis", None)
+    st.session_state.pop("last_indexed_document", None)
+    st.success("RAG connection reset. Re-index the selected document if needed.")
+    st.rerun()
 
 
 def render_rag_financial_analysis(analysis: RagFinancialAnalysisResult) -> None:
