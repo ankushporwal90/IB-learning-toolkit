@@ -115,15 +115,22 @@ class RagPipeline:
         )
         return len(chunks)
 
-    def retrieve(self, question: str, top_k: int = 5) -> list[RetrievedChunk]:
+    def retrieve(
+        self,
+        question: str,
+        top_k: int = 5,
+        document_name: str | None = None,
+    ) -> list[RetrievedChunk]:
         """Retrieve relevant chunks for a question."""
 
         if not question.strip():
             return []
 
+        where = {"document_name": document_name} if document_name else None
         results = self.collection.query(
             query_texts=[question],
             n_results=top_k,
+            where=where,
             include=["documents", "metadatas", "distances"],
         )
         documents = results.get("documents", [[]])[0]

@@ -22,6 +22,11 @@ from src.rag.pipeline import (
     RetrievedChunk,
     answer_question_with_rag,
 )
+from src.services.rag_financial_analysis_service import (
+    RagFinancialAnalysisResult,
+    RagSectionAnalysis,
+    analyze_financial_document_with_rag,
+)
 from src.services.phase1_filing_summary import extract_pdf_text, summarize_filing
 from src.services.sec_edgar_service import (
     fetch_latest_annual_and_quarterly_filings,
@@ -40,8 +45,8 @@ def render_phase1_mvp() -> None:
 
     st.title("AI SEC Filing + Earnings Call Analyzer")
     st.caption(
-        "Phase 3: upload a filing PDF or fetch the latest SEC 10-K and 10-Q, "
-        "then summarize, analyze, and ask cited RAG questions."
+        "Phase 3.5: upload a filing PDF or fetch the latest SEC 10-K and 10-Q, "
+        "then summarize, analyze, ask cited RAG questions, and generate cited financial intelligence."
     )
 
     st.warning(
@@ -50,7 +55,7 @@ def render_phase1_mvp() -> None:
     )
 
     with st.sidebar:
-        st.header("Phase 3")
+        st.header("Phase 3.5")
         st.write("Current scope:")
         st.write("- PDF upload")
         st.write("- Latest 10-K and 10-Q fetch")
@@ -58,12 +63,13 @@ def render_phase1_mvp() -> None:
         st.write("- Groq summary")
         st.write("- Structured finance analysis")
         st.write("- ChromaDB RAG with citations")
+        st.write("- RAG-powered finance tabs")
 
     st.markdown("#### Why this phase matters")
     st.write(
-        "Phase 3 adds RAG, which means answers are grounded in retrieved filing chunks "
-        "instead of one shortened excerpt. This is important in finance because users "
-        "need evidence and citations for risks, MD&A, revenue drivers, and metrics."
+        "Phase 3.5 improves the financial intelligence tabs with targeted retrieval. "
+        "Each section retrieves relevant filing chunks first, then generates cited analyst "
+        "findings so the output is more grounded and useful."
     )
 
     input_tab, sec_tab = st.tabs(["Upload PDF", "Fetch SEC Filings"])
@@ -166,7 +172,7 @@ def render_available_documents() -> None:
     with st.expander("Preview extracted text"):
         st.write(extraction.text[:3_000] + ("..." if len(extraction.text) > 3_000 else ""))
 
-    action_cols = st.columns(3)
+    action_cols = st.columns(4)
     if action_cols[0].button("Generate Phase 1 Summary", type="secondary"):
         with st.spinner("Asking Groq to summarize the filing..."):
             try:
@@ -189,7 +195,20 @@ def render_available_documents() -> None:
         st.session_state.last_indexed_document = extraction.document_name
         st.success(f"Indexed {chunk_count} chunks for retrieval.")
 
-    result_tab, analysis_tab, rag_tab = st.tabs(["Summary", "Financial Intelligence", "RAG Q&A"])
+    if action_cols[3].button("Generate RAG Financial Intelligence", type="primary"):
+        with st.spinner("Retrieving targeted filing evidence and generating cited finance tabs..."):
+            try:
+                st.session_state.rag_financial_analysis = analyze_financial_document_with_rag(
+                    extraction=extraction,
+                    rag_pipeline=get_rag_pipeline(),
+                )
+            except Exception as exc:
+                st.error(f"Could not generate RAG financial intelligence: {type(exc).__name__}: {exc}")
+                return
+
+    result_tab, analysis_tab, rag_analysis_tab, rag_tab = st.tabs(
+        ["Summary", "Financial Intelligence", "RAG Financial Intelligence", "RAG Q&A"]
+    )
 
     with result_tab:
         if st.session_state.get("phase1_summary"):
@@ -204,6 +223,16 @@ def render_available_documents() -> None:
             render_financial_analysis(analysis)
         else:
             st.info("Generate Phase 2 financial analysis to see structured analyst outputs.")
+
+    with rag_analysis_tab:
+        rag_analysis = st.session_state.get("rag_financial_analysis")
+        if rag_analysis:
+            render_rag_financial_analysis(rag_analysis)
+        else:
+            st.info(
+                "Click `Index for RAG`, then `Generate RAG Financial Intelligence` "
+                "to see citation-backed finance tabs."
+            )
 
     with rag_tab:
         render_rag_qa()
@@ -337,6 +366,48 @@ def render_rag_sources(chunks: list[RetrievedChunk]) -> None:
         distance = f"{chunk.distance:.4f}" if chunk.distance is not None else "n/a"
         with st.expander(f"Source {index}: {chunk.citation} | distance {distance}"):
             st.write(chunk.text)
+
+
+def render_rag_financial_analysis(analysis: RagFinancialAnalysisResult) -> None:
+    """Render Phase 3.5 citation-backed financial intelligence."""
+
+    st.caption(f"RAG analysis for: {analysis.document_name}")
+    overview_tab, revenue_tab, risks_tab, mda_tab, metrics_tab, tone_tab, insights_tab = st.tabs(
+        ["Overview", "Revenue", "Risks", "MD&A", "Metrics", "Tone", "Insights"]
+    )
+    sections = [
+        (overview_tab, analysis.business_overview),
+        (revenue_tab, analysis.revenue),
+        (risks_tab, analysis.risks),
+        (mda_tab, analysis.mda),
+        (metrics_tab, analysis.metrics),
+        (tone_tab, analysis.tone),
+        (insights_tab, analysis.insights),
+    ]
+    for tab, section in sections:
+        with tab:
+            render_rag_section_analysis(section)
+
+
+def render_rag_section_analysis(section: RagSectionAnalysis) -> None:
+    """Render one citation-backed finance section."""
+
+    st.markdown(f"#### {section.title}")
+    if section.limitations:
+        render_bullets(section.limitations, "No limitations were provided.")
+
+    if not section.findings:
+        st.info("No cited findings were generated for this section.")
+    for finding in section.findings:
+        st.write(f"**{finding.finding}**")
+        st.write(f"Evidence: {finding.evidence}")
+        st.caption(
+            f"Citation: {finding.citation} | Confidence: {finding.confidence} | "
+            f"Finance relevance: {finding.finance_relevance}"
+        )
+
+    if section.sources:
+        render_rag_sources(section.sources)
 
 
 if __name__ == "__main__":

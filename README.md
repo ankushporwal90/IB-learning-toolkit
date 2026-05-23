@@ -10,12 +10,14 @@ Current scope:
 - Generate a Groq-powered finance summary
 - Generate structured financial intelligence across revenue, risks, MD&A, metrics, tone, and insights
 - Index filings into ChromaDB for RAG-based cited Q&A
+- Generate RAG-powered financial intelligence with citations per finance section
 
 Start here:
 
 - Phase 1 guide: `docs/PHASE_1_BEGINNER_MVP.md`
 - Phase 2 guide: `docs/PHASE_2_FINANCIAL_INTELLIGENCE.md`
 - Phase 3 guide: `docs/PHASE_3_RAG_ARCHITECTURE.md`
+- Phase 3.5 guide: `docs/PHASE_3_5_RAG_FINANCIAL_INTELLIGENCE.md`
 - Streamlit app: `app/main.py`
 
 ## Run Locally
