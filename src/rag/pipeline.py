@@ -29,6 +29,7 @@ class DocumentChunk:
     text: str
     document_name: str
     chunk_index: int
+    section: str = "general"
 
 
 @dataclass
@@ -38,6 +39,7 @@ class RetrievedChunk:
     text: str
     document_name: str
     chunk_index: int
+    section: str = "general"
     distance: float | None = None
 
     @property
@@ -110,6 +112,7 @@ class RagPipeline:
                 {
                     "document_name": chunk.document_name,
                     "chunk_index": chunk.chunk_index,
+                    "section": chunk.section,
                 }
                 for chunk in chunks
             ],
@@ -145,10 +148,38 @@ class RagPipeline:
                     text=text,
                     document_name=str(metadata.get("document_name", "Unknown document")),
                     chunk_index=int(metadata.get("chunk_index", 0)),
+                    section=str(metadata.get("section", "general")),
                     distance=float(distance) if distance is not None else None,
                 )
             )
         return retrieved
+
+    def retrieve_section_aware(
+        self,
+        question: str,
+        top_k: int = 5,
+        document_name: str | None = None,
+    ) -> list[RetrievedChunk]:
+        """Route a question to likely filing sections and use hybrid retrieval."""
+
+        route = route_finance_question(question)
+        chunks = self.retrieve_hybrid(
+            question=route.expanded_question,
+            top_k=max(top_k * 3, 12),
+            document_name=document_name,
+        )
+        if not route.preferred_sections:
+            return chunks[:top_k]
+
+        scored: list[tuple[float, RetrievedChunk]] = []
+        keywords = build_keyword_terms(route.expanded_question)
+        for chunk in chunks:
+            score = keyword_score(chunk.text, keywords)
+            if chunk.section in route.preferred_sections:
+                score += 8
+            scored.append((score, chunk))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        return [chunk for _, chunk in scored[:top_k]]
 
     def retrieve_hybrid(
         self,
@@ -194,11 +225,12 @@ class RagPipeline:
         scored.sort(key=lambda item: item[0], reverse=True)
         return [
             RetrievedChunk(
-                text=chunk.text,
-                document_name=chunk.document_name,
-                chunk_index=chunk.chunk_index,
-                distance=1 / (score + 1),
-            )
+                    text=chunk.text,
+                    document_name=chunk.document_name,
+                    chunk_index=chunk.chunk_index,
+                    section=chunk.section,
+                    distance=1 / (score + 1),
+                )
             for score, chunk in scored[:top_k]
         ]
 
@@ -219,6 +251,7 @@ class RagPipeline:
                     text=text,
                     document_name=str(metadata.get("document_name", "Unknown document")),
                     chunk_index=int(metadata.get("chunk_index", 0)),
+                    section=str(metadata.get("section", "general")),
                 )
             )
         return sorted(chunks, key=lambda chunk: (chunk.document_name, chunk.chunk_index))
@@ -254,6 +287,7 @@ def chunk_extraction(
             text=text,
             document_name=extraction.document_name,
             chunk_index=index,
+            section=infer_section(text),
         )
         for index, text in enumerate(split_text(extraction.text, chunk_size, chunk_overlap))
     ]
@@ -341,6 +375,15 @@ def answer_question_with_rag(
     return llm.generate(system_prompt=system_prompt, user_prompt=build_rag_prompt(question, chunks))
 
 
+@dataclass
+class QueryRoute:
+    """Routing hints for section-aware retrieval."""
+
+    intent: str
+    preferred_sections: list[str]
+    expanded_question: str
+
+
 def expand_finance_query(question: str) -> str:
     """Add finance synonyms so retrieval catches filing terminology."""
 
@@ -366,6 +409,64 @@ def expand_finance_query(question: str) -> str:
     if any(term in lowered for term in ["risk", "risks"]):
         additions.extend(["risk factors", "uncertainty", "could adversely affect"])
     return " ".join([question, *additions])
+
+
+def route_finance_question(question: str) -> QueryRoute:
+    """Classify a finance question into likely SEC filing sections."""
+
+    lowered = question.lower()
+    expanded = expand_finance_query(question)
+    if any(term in lowered for term in ["revenue", "sales", "net sales", "margin", "income"]):
+        return QueryRoute(
+            intent="financial_metric",
+            preferred_sections=["financial_statements", "mda", "segments"],
+            expanded_question=expanded,
+        )
+    if any(term in lowered for term in ["risk", "risks", "competition", "cybersecurity"]):
+        return QueryRoute(
+            intent="risk",
+            preferred_sections=["risk_factors"],
+            expanded_question=expanded,
+        )
+    if any(term in lowered for term in ["cash flow", "liquidity", "debt", "capital"]):
+        return QueryRoute(
+            intent="liquidity",
+            preferred_sections=["mda", "financial_statements"],
+            expanded_question=expanded,
+        )
+    if any(term in lowered for term in ["segment", "product", "geography"]):
+        return QueryRoute(
+            intent="segments",
+            preferred_sections=["segments", "mda", "business"],
+            expanded_question=expanded,
+        )
+    return QueryRoute(intent="general", preferred_sections=[], expanded_question=expanded)
+
+
+def infer_section(text: str) -> str:
+    """Infer a rough SEC section label for a chunk."""
+
+    lowered = text.lower()
+    if any(term in lowered for term in ["item 1a", "risk factors", "could adversely affect"]):
+        return "risk_factors"
+    if any(term in lowered for term in ["item 7", "management's discussion", "management discussion"]):
+        return "mda"
+    if any(
+        term in lowered
+        for term in [
+            "consolidated statements of operations",
+            "consolidated balance sheets",
+            "consolidated statements of cash flows",
+            "net sales",
+            "net income",
+        ]
+    ):
+        return "financial_statements"
+    if any(term in lowered for term in ["segment", "iphone", "services net sales", "geographic"]):
+        return "segments"
+    if any(term in lowered for term in ["item 1", "business", "products and services"]):
+        return "business"
+    return "general"
 
 
 def build_keyword_terms(question: str) -> list[str]:

@@ -95,7 +95,7 @@ def analyze_financial_document_with_rag(
     sections: dict[str, RagSectionAnalysis] = {}
     for key, (title, question) in SECTION_QUERIES.items():
         try:
-            chunks = rag_pipeline.retrieve(
+            chunks = rag_pipeline.retrieve_section_aware(
                 question=question,
                 top_k=top_k,
                 document_name=extraction.document_name,

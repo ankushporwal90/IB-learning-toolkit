@@ -29,9 +29,17 @@ class FakeRagPipeline:
             )
         ]
 
+    def retrieve_section_aware(
+        self,
+        question: str,
+        top_k: int = 4,
+        document_name: str | None = None,
+    ) -> list[RetrievedChunk]:
+        return self.retrieve(question=question, top_k=top_k, document_name=document_name)
+
 
 class FailingRagPipeline:
-    def retrieve(
+    def retrieve_section_aware(
         self,
         question: str,
         top_k: int = 4,

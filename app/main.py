@@ -18,6 +18,7 @@ from src.services.financial_analysis_service import (
     analyze_financial_document,
 )
 from src.services.financial_metric_service import answer_metric_question
+from src.services.xbrl_companyfacts_service import answer_xbrl_metric_question
 from src.rag.pipeline import (
     RagPipeline,
     RetrievedChunk,
@@ -362,12 +363,16 @@ def render_rag_qa(selected_document_name: str | None = None) -> None:
         document_filter = selected_document_name if selected_document_name == last_indexed else last_indexed
         with st.spinner("Retrieving relevant chunks and generating a cited answer..."):
             try:
-                chunks = rag_pipeline.retrieve_hybrid(
+                xbrl_answer = None
+                ticker = st.session_state.get("last_ticker")
+                if ticker:
+                    xbrl_answer = answer_xbrl_metric_question(ticker=ticker, question=question)
+                chunks = rag_pipeline.retrieve_section_aware(
                     question,
                     top_k=8,
                     document_name=document_filter,
                 )
-                answer = answer_metric_question(question, chunks) or answer_question_with_rag(
+                answer = xbrl_answer or answer_metric_question(question, chunks) or answer_question_with_rag(
                     question,
                     chunks,
                 )

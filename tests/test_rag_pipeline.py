@@ -5,7 +5,9 @@ from src.rag.pipeline import (
     build_rag_prompt,
     chunk_extraction,
     expand_finance_query,
+    infer_section,
     keyword_score,
+    route_finance_question,
     split_text,
 )
 from src.services.phase1_filing_summary import FilingExtractionResult
@@ -118,3 +120,16 @@ def test_keyword_score_prioritizes_financial_statement_chunks() -> None:
     generic_text = "The company faces competition and macroeconomic risk."
 
     assert keyword_score(financial_statement_text, keywords) > keyword_score(generic_text, keywords)
+
+
+def test_infer_section_detects_financial_statements() -> None:
+    section = infer_section("Consolidated Statements of Operations Net sales 416,161")
+
+    assert section == "financial_statements"
+
+
+def test_route_finance_question_prefers_financial_sections_for_revenue() -> None:
+    route = route_finance_question("What was the latest revenue?")
+
+    assert route.intent == "financial_metric"
+    assert "financial_statements" in route.preferred_sections
