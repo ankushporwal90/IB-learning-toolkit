@@ -14,6 +14,7 @@ Current scope:
 - Use hybrid retrieval and revenue metric extraction for exact financial questions
 - Use section-aware RAG and query routing for better filing retrieval
 - Use SEC XBRL companyfacts for official financial metrics
+- Save analysis sessions, history, and Markdown exports with SQLite
 
 Start here:
 
@@ -23,6 +24,7 @@ Start here:
 - Phase 3.5 guide: `docs/PHASE_3_5_RAG_FINANCIAL_INTELLIGENCE.md`
 - Phase 3.6 guide: `docs/PHASE_3_6_RAG_RETRIEVAL_QUALITY.md`
 - Phase 3.7/3.8 guide: `docs/PHASE_3_7_3_8_SECTION_RAG_XBRL.md`
+- Phase 4 guide: `docs/PHASE_4_MEMORY_STATE.md`
 - Streamlit app: `app/main.py`
 
 ## Run Locally
