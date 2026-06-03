@@ -1,8 +1,11 @@
 from src.rag.pipeline import (
     RetrievedChunk,
     answer_question_with_rag,
+    build_keyword_terms,
     build_rag_prompt,
     chunk_extraction,
+    expand_finance_query,
+    keyword_score,
     split_text,
 )
 from src.services.phase1_filing_summary import FilingExtractionResult
@@ -98,3 +101,20 @@ def test_answer_question_with_rag_uses_configured_llm() -> None:
     )
 
     assert answer == "Competition is a key risk [Source 1]."
+
+
+def test_expand_finance_query_adds_revenue_filing_terms() -> None:
+    expanded = expand_finance_query("What was the latest revenue?")
+
+    assert "net sales" in expanded
+    assert "consolidated statements of operations" in expanded
+
+
+def test_keyword_score_prioritizes_financial_statement_chunks() -> None:
+    keywords = build_keyword_terms("latest revenue net sales")
+    financial_statement_text = (
+        "Consolidated Statements of Operations Net sales 416,161 391,035 383,285"
+    )
+    generic_text = "The company faces competition and macroeconomic risk."
+
+    assert keyword_score(financial_statement_text, keywords) > keyword_score(generic_text, keywords)

@@ -11,6 +11,7 @@ Current scope:
 - Generate structured financial intelligence across revenue, risks, MD&A, metrics, tone, and insights
 - Index filings into ChromaDB for RAG-based cited Q&A
 - Generate RAG-powered financial intelligence with citations per finance section
+- Use hybrid retrieval and revenue metric extraction for exact financial questions
 
 Start here:
 
@@ -18,6 +19,7 @@ Start here:
 - Phase 2 guide: `docs/PHASE_2_FINANCIAL_INTELLIGENCE.md`
 - Phase 3 guide: `docs/PHASE_3_RAG_ARCHITECTURE.md`
 - Phase 3.5 guide: `docs/PHASE_3_5_RAG_FINANCIAL_INTELLIGENCE.md`
+- Phase 3.6 guide: `docs/PHASE_3_6_RAG_RETRIEVAL_QUALITY.md`
 - Streamlit app: `app/main.py`
 
 ## Run Locally

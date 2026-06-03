@@ -17,6 +17,7 @@ from src.services.financial_analysis_service import (
     FinancialAnalysisResult,
     analyze_financial_document,
 )
+from src.services.financial_metric_service import answer_metric_question
 from src.rag.pipeline import (
     RagPipeline,
     RetrievedChunk,
@@ -45,8 +46,8 @@ def render_phase1_mvp() -> None:
 
     st.title("AI SEC Filing + Earnings Call Analyzer")
     st.caption(
-        "Phase 3.5: upload a filing PDF or fetch the latest SEC 10-K and 10-Q, "
-        "then summarize, analyze, ask cited RAG questions, and generate cited financial intelligence."
+        "Phase 3.6: upload or fetch SEC filings, summarize, analyze, ask cited RAG questions, "
+        "and answer exact finance metrics with hybrid retrieval."
     )
 
     st.warning(
@@ -55,7 +56,7 @@ def render_phase1_mvp() -> None:
     )
 
     with st.sidebar:
-        st.header("Phase 3.5")
+        st.header("Phase 3.6")
         st.write("Current scope:")
         st.write("- PDF upload")
         st.write("- Latest 10-K and 10-Q fetch")
@@ -64,12 +65,13 @@ def render_phase1_mvp() -> None:
         st.write("- Structured finance analysis")
         st.write("- ChromaDB RAG with citations")
         st.write("- RAG-powered finance tabs")
+        st.write("- Hybrid retrieval for exact metrics")
 
     st.markdown("#### Why this phase matters")
     st.write(
-        "Phase 3.5 improves the financial intelligence tabs with targeted retrieval. "
-        "Each section retrieves relevant filing chunks first, then generates cited analyst "
-        "findings so the output is more grounded and useful."
+        "Phase 3.6 improves retrieval quality for finance questions. It combines semantic "
+        "search with keyword scoring and metric extraction, so questions like latest revenue "
+        "can find filing terms such as total net sales."
     )
 
     input_tab, sec_tab = st.tabs(["Upload PDF", "Fetch SEC Filings"])
@@ -238,7 +240,7 @@ def render_available_documents() -> None:
             )
 
     with rag_tab:
-        render_rag_qa()
+        render_rag_qa(selected_document_name=extraction.document_name)
 
 
 def render_extraction_metrics(extraction: object) -> None:
@@ -328,7 +330,7 @@ def get_rag_pipeline() -> RagPipeline:
     return st.session_state.rag_pipeline
 
 
-def render_rag_qa() -> None:
+def render_rag_qa(selected_document_name: str | None = None) -> None:
     """Render citation-aware RAG question answering."""
 
     rag_pipeline = get_rag_pipeline()
@@ -357,10 +359,18 @@ def render_rag_qa() -> None:
     )
 
     if st.button("Ask with RAG", type="primary"):
+        document_filter = selected_document_name if selected_document_name == last_indexed else last_indexed
         with st.spinner("Retrieving relevant chunks and generating a cited answer..."):
             try:
-                chunks = rag_pipeline.retrieve(question, top_k=5)
-                answer = answer_question_with_rag(question, chunks)
+                chunks = rag_pipeline.retrieve_hybrid(
+                    question,
+                    top_k=8,
+                    document_name=document_filter,
+                )
+                answer = answer_metric_question(question, chunks) or answer_question_with_rag(
+                    question,
+                    chunks,
+                )
             except Exception as exc:
                 st.error(f"RAG retrieval failed: {type(exc).__name__}: {exc}")
                 return
