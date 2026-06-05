@@ -18,6 +18,11 @@ from src.services.financial_analysis_service import (
     analyze_financial_document,
 )
 from src.services.financial_metric_service import answer_metric_question
+from src.services.financial_statement_service import (
+    FinancialStatementData,
+    extract_financial_statement_data,
+    financial_statement_data_to_markdown,
+)
 from src.services.xbrl_companyfacts_service import answer_xbrl_metric_question
 from src.rag.pipeline import (
     RagPipeline,
@@ -57,8 +62,8 @@ def render_phase1_mvp() -> None:
 
     st.title("AI SEC Filing + Earnings Call Analyzer")
     st.caption(
-        "Phase 4: upload or fetch SEC filings, summarize, analyze, ask cited RAG questions, "
-        "answer exact metrics, and save research sessions."
+        "Phase 4.5: upload or fetch SEC filings, extract financial statements, ask cited "
+        "RAG questions, answer exact metrics, and save research sessions."
     )
 
     st.warning(
@@ -67,7 +72,7 @@ def render_phase1_mvp() -> None:
     )
 
     with st.sidebar:
-        st.header("Phase 4")
+        st.header("Phase 4.5")
         st.write("Current scope:")
         st.write("- PDF upload")
         st.write("- Latest 10-K and 10-Q fetch")
@@ -77,14 +82,15 @@ def render_phase1_mvp() -> None:
         st.write("- ChromaDB RAG with citations")
         st.write("- RAG-powered finance tabs")
         st.write("- Hybrid retrieval for exact metrics")
+        st.write("- XBRL financial statement extraction")
         st.write("- Saved analysis sessions")
         render_memory_sidebar()
 
     st.markdown("#### Why this phase matters")
     st.write(
-        "Phase 4 adds memory and saved analysis sessions. That turns one-off answers into "
-        "a research trail: selected filings, summaries, structured analysis, RAG answers, "
-        "and exportable notes."
+        "Phase 4.5 adds a financial statement extraction layer for banker-critical hard "
+        "numbers: revenue, expenses, interest, tax, D&A, stock comp, working capital, and "
+        "derived ratios."
     )
 
     input_tab, sec_tab = st.tabs(["Upload PDF", "Fetch SEC Filings"])
@@ -187,7 +193,7 @@ def render_available_documents() -> None:
     with st.expander("Preview extracted text"):
         st.write(extraction.text[:3_000] + ("..." if len(extraction.text) > 3_000 else ""))
 
-    action_cols = st.columns(4)
+    action_cols = st.columns(5)
     if action_cols[0].button("Generate Phase 1 Summary", type="secondary"):
         with st.spinner("Asking Groq to summarize the filing..."):
             try:
@@ -239,8 +245,34 @@ def render_available_documents() -> None:
                 st.error(f"Could not generate RAG financial intelligence: {type(exc).__name__}: {exc}")
                 return
 
-    result_tab, analysis_tab, rag_analysis_tab, rag_tab, memory_tab = st.tabs(
-        ["Summary", "Financial Intelligence", "RAG Financial Intelligence", "RAG Q&A", "Memory"]
+    if action_cols[4].button("Extract Financial Statements", type="primary"):
+        ticker = st.session_state.get("last_ticker")
+        if not ticker:
+            st.warning("Fetch a company by ticker first so SEC XBRL facts can be loaded.")
+            return
+        with st.spinner(f"Extracting financial statement data for {ticker} from SEC XBRL..."):
+            try:
+                st.session_state.financial_statement_data = extract_financial_statement_data(ticker)
+                save_current_event(
+                    event_type="financial_statement_data",
+                    content=financial_statement_data_to_markdown(
+                        st.session_state.financial_statement_data
+                    ),
+                    document_name=extraction.document_name,
+                )
+            except Exception as exc:
+                st.error(f"Could not extract financial statement data: {type(exc).__name__}: {exc}")
+                return
+
+    result_tab, analysis_tab, statement_tab, rag_analysis_tab, rag_tab, memory_tab = st.tabs(
+        [
+            "Summary",
+            "Financial Intelligence",
+            "Financial Statements",
+            "RAG Financial Intelligence",
+            "RAG Q&A",
+            "Memory",
+        ]
     )
 
     with result_tab:
@@ -256,6 +288,13 @@ def render_available_documents() -> None:
             render_financial_analysis(analysis)
         else:
             st.info("Generate Phase 2 financial analysis to see structured analyst outputs.")
+
+    with statement_tab:
+        statement_data = st.session_state.get("financial_statement_data")
+        if statement_data:
+            render_financial_statement_data(statement_data)
+        else:
+            st.info("Click `Extract Financial Statements` after fetching a ticker.")
 
     with rag_analysis_tab:
         rag_analysis = st.session_state.get("rag_financial_analysis")
@@ -434,6 +473,33 @@ def render_rag_sources(chunks: list[RetrievedChunk]) -> None:
         distance = f"{chunk.distance:.4f}" if chunk.distance is not None else "n/a"
         with st.expander(f"Source {index}: {chunk.citation} | distance {distance}"):
             st.write(chunk.text)
+
+
+def render_financial_statement_data(data: FinancialStatementData) -> None:
+    """Render extracted SEC XBRL financial statement data."""
+
+    st.markdown(f"#### {data.company_name} ({data.ticker})")
+    line_tab, derived_tab, limitations_tab = st.tabs(["Line Items", "Derived Metrics", "Limitations"])
+
+    with line_tab:
+        if not data.line_items:
+            st.info("No line items were extracted.")
+        for item in data.line_items:
+            cols = st.columns([2, 1, 1])
+            cols[0].write(f"**{item.label}**")
+            cols[1].write(item.value)
+            cols[2].caption(f"FY {item.fiscal_year or 'n/a'}")
+            st.caption(f"Tag: `{item.source_tag}` | {item.notes}")
+
+    with derived_tab:
+        if not data.derived_metrics:
+            st.info("No derived metrics were calculated.")
+        for metric in data.derived_metrics:
+            st.write(f"**{metric.label}:** {metric.value}")
+            st.caption(f"{metric.formula}. {metric.notes}")
+
+    with limitations_tab:
+        render_bullets(data.limitations, "No extraction limitations were recorded.")
 
 
 def reset_rag_session() -> None:

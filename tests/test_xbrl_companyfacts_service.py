@@ -1,6 +1,7 @@
 from src.services.xbrl_companyfacts_service import (
     detect_metric,
     latest_metric_from_companyfacts,
+    METRIC_TAGS,
 )
 
 
@@ -55,3 +56,9 @@ def test_latest_metric_from_companyfacts_returns_latest_annual_revenue() -> None
     assert metric.formatted_value == "$416,161,000,000"
     assert metric.fiscal_year == 2025
     assert metric.tag == "RevenueFromContractWithCustomerExcludingAssessedTax"
+
+
+def test_metric_tag_map_includes_banker_statement_items() -> None:
+    assert "interest_expense" in METRIC_TAGS
+    assert "share_based_compensation" in METRIC_TAGS
+    assert "accounts_receivable_change" in METRIC_TAGS

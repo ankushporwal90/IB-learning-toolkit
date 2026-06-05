@@ -54,9 +54,35 @@ METRIC_TAGS: dict[str, list[str]] = {
         "Revenues",
         "SalesRevenueNet",
     ],
+    "cost_of_revenue": [
+        "CostOfRevenue",
+        "CostOfGoodsAndServicesSold",
+        "CostOfGoodsSold",
+    ],
+    "research_and_development": ["ResearchAndDevelopmentExpense"],
+    "selling_general_admin": ["SellingGeneralAndAdministrativeExpense"],
+    "operating_expenses": ["OperatingExpenses"],
+    "interest_income": ["InterestIncomeExpenseNonOperatingNet", "InterestIncomeNonOperating"],
+    "interest_expense": ["InterestExpenseNonOperating", "InterestExpense"],
+    "income_tax_expense": ["IncomeTaxExpenseBenefit"],
+    "pretax_income": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"],
     "net_income": ["NetIncomeLoss"],
     "operating_income": ["OperatingIncomeLoss"],
     "operating_cash_flow": ["NetCashProvidedByUsedInOperatingActivities"],
+    "depreciation_and_amortization": [
+        "DepreciationDepletionAndAmortization",
+        "DepreciationDepletionAndAmortizationExpense",
+        "DepreciationAndAmortization",
+    ],
+    "share_based_compensation": ["ShareBasedCompensation"],
+    "accounts_receivable_change": ["IncreaseDecreaseInAccountsReceivable"],
+    "inventory_change": ["IncreaseDecreaseInInventories"],
+    "accounts_payable_change": ["IncreaseDecreaseInAccountsPayable"],
+    "contract_liabilities_change": ["IncreaseDecreaseInContractWithCustomerLiability"],
+    "current_assets": ["AssetsCurrent"],
+    "current_liabilities": ["LiabilitiesCurrent"],
+    "long_term_debt": ["LongTermDebt", "LongTermDebtNoncurrent"],
+    "short_term_debt": ["ShortTermBorrowings", "ShortTermDebt", "LongTermDebtCurrent"],
     "assets": ["Assets"],
 }
 
@@ -166,6 +192,18 @@ def detect_metric(question: str) -> str | None:
     lowered = question.lower()
     if any(term in lowered for term in ["revenue", "sales", "net sales"]):
         return "revenue"
+    if "cost of revenue" in lowered or "cost of sales" in lowered:
+        return "cost_of_revenue"
+    if "interest income" in lowered:
+        return "interest_income"
+    if "interest expense" in lowered:
+        return "interest_expense"
+    if "tax" in lowered:
+        return "income_tax_expense"
+    if "depreciation" in lowered or "amortization" in lowered:
+        return "depreciation_and_amortization"
+    if "stock compensation" in lowered or "share based" in lowered or "share-based" in lowered:
+        return "share_based_compensation"
     if "net income" in lowered or "profit" in lowered or "earnings" in lowered:
         return "net_income"
     if "operating income" in lowered:
