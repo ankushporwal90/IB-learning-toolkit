@@ -16,6 +16,7 @@ Current scope:
 - Use SEC XBRL companyfacts for official financial metrics
 - Save analysis sessions, history, and Markdown exports with SQLite
 - Extract banker-critical financial statement data from SEC XBRL
+- Generate IB-style filing briefs with company profile, transaction angles, diligence questions, and risk flags
 
 Start here:
 
@@ -27,6 +28,7 @@ Start here:
 - Phase 3.7/3.8 guide: `docs/PHASE_3_7_3_8_SECTION_RAG_XBRL.md`
 - Phase 4 guide: `docs/PHASE_4_MEMORY_STATE.md`
 - Phase 4.5 guide: `docs/PHASE_4_5_FINANCIAL_STATEMENT_ENGINE.md`
+- Phase 5 guide: `docs/PHASE_5_IB_WORKFLOW_LAYER.md`
 - Streamlit app: `app/main.py`
 
 ## Run Locally

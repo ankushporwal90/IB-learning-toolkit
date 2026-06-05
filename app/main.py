@@ -23,6 +23,7 @@ from src.services.financial_statement_service import (
     extract_financial_statement_data,
     financial_statement_data_to_markdown,
 )
+from src.services.ib_workflow_service import IbBrief, generate_ib_brief, ib_brief_to_markdown
 from src.services.xbrl_companyfacts_service import answer_xbrl_metric_question
 from src.rag.pipeline import (
     RagPipeline,
@@ -62,8 +63,8 @@ def render_phase1_mvp() -> None:
 
     st.title("AI SEC Filing + Earnings Call Analyzer")
     st.caption(
-        "Phase 4.5: upload or fetch SEC filings, extract financial statements, ask cited "
-        "RAG questions, answer exact metrics, and save research sessions."
+        "Phase 5: upload or fetch SEC filings, extract financials, ask cited RAG questions, "
+        "save research sessions, and generate IB-style filing briefs."
     )
 
     st.warning(
@@ -72,7 +73,7 @@ def render_phase1_mvp() -> None:
     )
 
     with st.sidebar:
-        st.header("Phase 4.5")
+        st.header("Phase 5")
         st.write("Current scope:")
         st.write("- PDF upload")
         st.write("- Latest 10-K and 10-Q fetch")
@@ -84,13 +85,14 @@ def render_phase1_mvp() -> None:
         st.write("- Hybrid retrieval for exact metrics")
         st.write("- XBRL financial statement extraction")
         st.write("- Saved analysis sessions")
+        st.write("- IB filing brief workflow")
         render_memory_sidebar()
 
     st.markdown("#### Why this phase matters")
     st.write(
-        "Phase 4.5 adds a financial statement extraction layer for banker-critical hard "
-        "numbers: revenue, expenses, interest, tax, D&A, stock comp, working capital, and "
-        "derived ratios."
+        "Phase 5 turns the analysis into banker workflow outputs: company profile, "
+        "financial snapshot, transaction angles, diligence questions, risk flags, and "
+        "recent changes."
     )
 
     input_tab, sec_tab = st.tabs(["Upload PDF", "Fetch SEC Filings"])
@@ -193,7 +195,7 @@ def render_available_documents() -> None:
     with st.expander("Preview extracted text"):
         st.write(extraction.text[:3_000] + ("..." if len(extraction.text) > 3_000 else ""))
 
-    action_cols = st.columns(5)
+    action_cols = st.columns(6)
     if action_cols[0].button("Generate Phase 1 Summary", type="secondary"):
         with st.spinner("Asking Groq to summarize the filing..."):
             try:
@@ -264,11 +266,32 @@ def render_available_documents() -> None:
                 st.error(f"Could not extract financial statement data: {type(exc).__name__}: {exc}")
                 return
 
-    result_tab, analysis_tab, statement_tab, rag_analysis_tab, rag_tab, memory_tab = st.tabs(
+    if action_cols[5].button("Generate IB Brief", type="primary"):
+        if st.session_state.get("last_indexed_document") != extraction.document_name:
+            st.warning("Index the selected document for RAG before generating the IB brief.")
+            return
+        with st.spinner("Generating banker-style filing brief..."):
+            try:
+                st.session_state.ib_brief = generate_ib_brief(
+                    extraction=extraction,
+                    rag_pipeline=get_rag_pipeline(),
+                    financial_data=st.session_state.get("financial_statement_data"),
+                )
+                save_current_event(
+                    event_type="ib_filing_brief",
+                    content=ib_brief_to_markdown(st.session_state.ib_brief),
+                    document_name=extraction.document_name,
+                )
+            except Exception as exc:
+                st.error(f"Could not generate IB brief: {type(exc).__name__}: {exc}")
+                return
+
+    result_tab, analysis_tab, statement_tab, ib_tab, rag_analysis_tab, rag_tab, memory_tab = st.tabs(
         [
             "Summary",
             "Financial Intelligence",
             "Financial Statements",
+            "IB Brief",
             "RAG Financial Intelligence",
             "RAG Q&A",
             "Memory",
@@ -295,6 +318,13 @@ def render_available_documents() -> None:
             render_financial_statement_data(statement_data)
         else:
             st.info("Click `Extract Financial Statements` after fetching a ticker.")
+
+    with ib_tab:
+        ib_brief = st.session_state.get("ib_brief")
+        if ib_brief:
+            render_ib_brief(ib_brief)
+        else:
+            st.info("Click `Index for RAG`, optionally extract financial statements, then `Generate IB Brief`.")
 
     with rag_analysis_tab:
         rag_analysis = st.session_state.get("rag_financial_analysis")
@@ -500,6 +530,36 @@ def render_financial_statement_data(data: FinancialStatementData) -> None:
 
     with limitations_tab:
         render_bullets(data.limitations, "No extraction limitations were recorded.")
+
+
+def render_ib_brief(brief: IbBrief) -> None:
+    """Render banker-style filing brief."""
+
+    profile_tab, snapshot_tab, angles_tab, diligence_tab, risks_tab, changes_tab = st.tabs(
+        ["Profile", "Snapshot", "Angles", "Diligence", "Risk Flags", "Changes"]
+    )
+    with profile_tab:
+        render_bullets(brief.company_profile, "No company profile bullets were generated.")
+    with snapshot_tab:
+        render_bullets(brief.financial_snapshot, "No financial snapshot bullets were generated.")
+    with angles_tab:
+        render_bullets(brief.transaction_angles, "No transaction angles were generated.")
+    with diligence_tab:
+        render_bullets(brief.diligence_questions, "No diligence questions were generated.")
+    with risks_tab:
+        render_bullets(brief.risk_flags, "No risk flags were generated.")
+        if brief.limitations:
+            st.markdown("#### Limitations")
+            render_bullets(brief.limitations, "No limitations were provided.")
+    with changes_tab:
+        render_bullets(brief.recent_changes, "No recent changes were generated.")
+
+    st.download_button(
+        "Download IB Brief Markdown",
+        data=ib_brief_to_markdown(brief),
+        file_name="ib_filing_brief.md",
+        mime="text/markdown",
+    )
 
 
 def reset_rag_session() -> None:

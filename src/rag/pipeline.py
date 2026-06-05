@@ -59,6 +59,11 @@ class HashEmbeddingFunction:
     def __init__(self, dimensions: int = 384) -> None:
         self.dimensions = dimensions
 
+    def name(self) -> str:
+        """Return a Chroma-compatible embedding function name."""
+
+        return "hash_embedding_fallback"
+
     def __call__(self, input: list[str]) -> list[list[float]]:
         """Return normalized hash embeddings for ChromaDB."""
 
