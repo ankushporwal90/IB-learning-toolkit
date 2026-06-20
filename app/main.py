@@ -284,6 +284,17 @@ def render_energy_company_ib_assistant() -> None:
                 f"{selected_report_type.lower()} PDFs."
             )
             st.link_button("Open company IR source page", selected_company["ir_url"])
+            if selected_report_type == "Investor presentation":
+                st.caption(
+                    "Reading cue: on the IR page, choose the most recent dated investor "
+                    "presentation, usually labeled as the latest monthly, quarterly, or "
+                    "corporate investor presentation."
+                )
+            else:
+                st.caption(
+                    "Reading cue: on the IR page, choose the latest quarterly earnings "
+                    "presentation, for example Q1, Q2, Q3, or Q4 earnings presentation."
+                )
             if st.button(
                 f"Find and fetch latest {selected_report_type.lower()}",
                 key="energy_fetch_ir_presentation",
