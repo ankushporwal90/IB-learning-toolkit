@@ -1,1 +1,1 @@
-"""Core package for the AI SEC Filing Analyzer."""
+"""Core package for the IB Learning Toolkit."""

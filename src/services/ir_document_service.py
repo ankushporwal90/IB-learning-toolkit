@@ -76,7 +76,7 @@ def discover_ir_pdf_links(
 
     response = get_session(session).get(
         source_url,
-        headers={"User-Agent": "Mozilla/5.0 AI SEC Filing Analyzer learning project"},
+        headers={"User-Agent": "Mozilla/5.0 IB Learning Toolkit learning project"},
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
@@ -94,7 +94,7 @@ def download_ir_pdf(
 
     response = get_session(session).get(
         candidate.url,
-        headers={"User-Agent": "Mozilla/5.0 AI SEC Filing Analyzer learning project"},
+        headers={"User-Agent": "Mozilla/5.0 IB Learning Toolkit learning project"},
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()

@@ -1,4 +1,4 @@
-"""Streamlit entrypoint for the AI SEC Filing Analyzer.
+"""Streamlit entrypoint for the IB Learning Toolkit.
 
 Run locally:
     streamlit run app/main.py
@@ -130,12 +130,12 @@ def render_phase1_mvp() -> None:
 
     initialize_session_store()
     st.set_page_config(
-        page_title="AI SEC Filing Analyzer",
+        page_title="IB Learning Toolkit",
         page_icon=":bar_chart:",
         layout="wide",
     )
 
-    st.title("AI SEC Filing + Earnings Call Analyzer")
+    st.title("IB Learning Toolkit")
     st.caption(
         "Phase 5: upload or fetch SEC filings, extract financials, ask cited RAG questions, "
         "save research sessions, and generate IB-style filing briefs."

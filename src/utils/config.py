@@ -1,4 +1,4 @@
-"""Configuration loading for the AI SEC Filing Analyzer."""
+"""Configuration loading for the IB Learning Toolkit."""
 
 from pathlib import Path
 
@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     groq_model: str = "llama-3.1-8b-instant"
     app_env: str = "development"
     log_level: str = "INFO"
-    sec_user_agent: str = "AISECFilingAnalyzer your.email@example.com"
+    sec_user_agent: str = "IBLearningToolkit your.email@example.com"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     chroma_persist_dir: str = "data/vector_store"
     sqlite_db_path: str = "data/sqlite/sec_analyzer.db"

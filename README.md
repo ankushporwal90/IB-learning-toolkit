@@ -1,4 +1,4 @@
-# AI SEC Filing + Earnings Call Analyzer
+# IB Learning Toolkit
 
 Production-style learning project for SEC filing, earnings call, and investor presentation analysis.
 
