@@ -313,11 +313,17 @@ def render_metric_placeholders(selected_company: dict[str, str]) -> None:
 def render_sourced_metrics(metrics_data: DashboardMetrics) -> None:
     """Render sourced dashboard metrics with source notes."""
 
-    metric_cols = st.columns(4)
-    for index, metric in enumerate(metrics_data.metrics):
-        with metric_cols[index % 4]:
-            st.metric(metric.label, metric.value)
-            st.caption(f"{metric.source}. {metric.notes}")
+    if not metrics_data.metrics:
+        st.warning(
+            "No dashboard metrics could be sourced reliably for this company yet. "
+            "Try extracting financial statements from the latest 10-K/10-Q in the research tab."
+        )
+    else:
+        metric_cols = st.columns(4)
+        for index, metric in enumerate(metrics_data.metrics):
+            with metric_cols[index % 4]:
+                st.metric(metric.label, metric.value)
+                st.caption(f"{metric.source}. {metric.notes}")
 
     if metrics_data.limitations:
         with st.expander("Metric limitations"):

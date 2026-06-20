@@ -1,8 +1,10 @@
 from src.services.dashboard_metrics_service import (
+    DashboardMetric,
     add_market_metrics,
     fetch_yahoo_quote,
     format_compact_currency,
     format_range,
+    split_reliable_metrics,
 )
 
 
@@ -89,6 +91,18 @@ def test_fetch_dashboard_metrics_continues_when_quote_fails(monkeypatch) -> None
     data = service.fetch_dashboard_metrics("ET")
 
     assert data.ticker == "ET"
-    assert data.metrics[0].label == "Share Price"
-    assert data.metrics[0].value == "n/a"
+    assert data.metrics == []
     assert any("Yahoo Finance quote data was unavailable" in item for item in data.limitations)
+    assert any("Share Price was not displayed" in item for item in data.limitations)
+
+def test_split_reliable_metrics_filters_unavailable_values() -> None:
+    metrics = [
+        DashboardMetric("Market Cap", "n/a", "source"),
+        DashboardMetric("FY Revenue", "$10.0B", "source"),
+        DashboardMetric("FCF Proxy", "", "source"),
+    ]
+
+    reliable, missing = split_reliable_metrics(metrics)
+
+    assert [metric.label for metric in reliable] == ["FY Revenue"]
+    assert missing == ["Market Cap", "FCF Proxy"]

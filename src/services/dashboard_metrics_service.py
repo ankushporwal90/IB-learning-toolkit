@@ -70,10 +70,16 @@ def fetch_dashboard_metrics(
     add_market_metrics(metrics=metrics, quote=quote)
     add_xbrl_metrics(metrics=metrics, limitations=limitations, facts=facts)
 
+    reliable_metrics, missing_metric_labels = split_reliable_metrics(metrics)
+    limitations.extend(
+        f"{label} was not displayed because no reliable sourced value was available."
+        for label in missing_metric_labels
+    )
+
     return DashboardMetrics(
         ticker=normalized_ticker,
         company_name=company.name,
-        metrics=metrics,
+        metrics=reliable_metrics,
         limitations=limitations,
     )
 
@@ -193,6 +199,25 @@ def add_xbrl_metrics(
     if cash is None:
         limitations.append("Net debt needs a cash and equivalents fact; none was found.")
 
+
+def split_reliable_metrics(metrics: list[DashboardMetric]) -> tuple[list[DashboardMetric], list[str]]:
+    """Separate metrics with real sourced values from unavailable metrics."""
+
+    reliable: list[DashboardMetric] = []
+    missing_labels: list[str] = []
+    for metric in metrics:
+        if is_reliable_metric(metric):
+            reliable.append(metric)
+        else:
+            missing_labels.append(metric.label)
+    return reliable, missing_labels
+
+
+def is_reliable_metric(metric: DashboardMetric) -> bool:
+    """Return True when a metric should be shown on the front-end dashboard."""
+
+    value = metric.value.strip().lower()
+    return value not in {"", "n/a", "nan", "none"}
 
 def metric_from_xbrl(label: str, metric: XbrlMetric | None, source: str) -> DashboardMetric:
     """Create a display metric from an XBRL fact."""
