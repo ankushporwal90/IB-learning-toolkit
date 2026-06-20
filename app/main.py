@@ -14,6 +14,7 @@ import streamlit.components.v1 as components
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.append(str(PROJECT_ROOT))
 
+from src.services.dashboard_metrics_service import DashboardMetrics, fetch_dashboard_metrics
 from src.services.financial_analysis_service import (
     FinancialAnalysisResult,
     analyze_financial_document,
@@ -253,41 +254,75 @@ def render_company_dashboard() -> None:
 
 
 def render_financial_metrics_panel(selected_company: dict[str, str]) -> None:
-    """Show IB-style financial metrics to collect and monitor."""
+    """Show sourced IB-style financial metrics for the selected company."""
 
     st.markdown("#### Financial Metrics")
     st.caption(
-        "These are the first metrics an IB analyst would usually pull from market data, "
-        "latest filings, earnings releases, and investor presentations."
+        "Sourced from Yahoo Finance quote data and SEC XBRL companyfacts where available. "
+        "Company-adjusted metrics can differ from these public-data proxies."
     )
+
+    ticker = selected_company["ticker"]
+    metric_key = f"dashboard_metrics_{ticker}"
+    if st.button(f"Source financial metrics for {ticker}", type="primary"):
+        with st.spinner(f"Sourcing market and SEC XBRL metrics for {ticker}..."):
+            try:
+                st.session_state[metric_key] = fetch_dashboard_metrics(ticker)
+            except Exception as exc:
+                st.error(f"Could not source financial metrics: {type(exc).__name__}: {exc}")
+                return
+
+    metrics_data = st.session_state.get(metric_key)
+    if not metrics_data:
+        render_metric_placeholders(selected_company)
+        return
+
+    render_sourced_metrics(metrics_data)
+
+
+def render_metric_placeholders(selected_company: dict[str, str]) -> None:
+    """Show the intended metric set before values are sourced."""
 
     sector = selected_company["sector"]
-    common_metrics = [
-        ("Market Cap", "Equity value from share price x diluted shares"),
-        ("Enterprise Value", "Market cap + net debt and other claims"),
-        ("LTM Revenue", "Latest twelve-month revenue"),
-        ("LTM EBITDA", "Core operating cash earnings proxy"),
-        ("Net Debt / EBITDA", "Balance sheet leverage"),
-        ("FCF Yield", "Free cash flow relative to market value"),
+    labels = [
+        "Share Price",
+        "Market Cap",
+        "52W Range",
+        "FY Revenue",
+        "EBITDA Proxy",
+        "Total Debt",
+        "Net Debt",
+        "FCF Proxy",
     ]
     sector_metric = {
-        "Upstream": ("Production", "Oil, gas, and NGL volumes by period"),
-        "Integrated / Downstream": ("Refining Margin", "Downstream cycle and margin marker"),
-        "Midstream": ("DCF Coverage", "Distributable cash flow / distributions"),
-        "Oilfield Services": ("EBITDA Margin", "Service pricing and cost efficiency"),
+        "Upstream": "Production",
+        "Integrated / Downstream": "Refining Margin",
+        "Midstream": "DCF Coverage",
+        "Oilfield Services": "EBITDA Margin",
     }.get(sector)
+    if sector_metric:
+        labels.append(sector_metric)
 
-    metrics = common_metrics + ([sector_metric] if sector_metric else [])
     metric_cols = st.columns(4)
-    for index, (label, help_text) in enumerate(metrics):
+    for index, label in enumerate(labels):
         with metric_cols[index % 4]:
-            st.metric(label, "To source")
-            st.caption(help_text)
+            st.metric(label, "Click source")
+    st.info("Click `Source financial metrics` to populate available market and filing values.")
 
-    st.info(
-        "Next build step: connect these cards to market data and SEC/XBRL extraction so "
-        "the dashboard shows live values instead of collection prompts."
-    )
+
+def render_sourced_metrics(metrics_data: DashboardMetrics) -> None:
+    """Render sourced dashboard metrics with source notes."""
+
+    metric_cols = st.columns(4)
+    for index, metric in enumerate(metrics_data.metrics):
+        with metric_cols[index % 4]:
+            st.metric(metric.label, metric.value)
+            st.caption(f"{metric.source}. {metric.notes}")
+
+    if metrics_data.limitations:
+        with st.expander("Metric limitations"):
+            for limitation in metrics_data.limitations:
+                st.write(f"- {limitation}")
 
 
 def render_energy_company_ib_assistant() -> None:

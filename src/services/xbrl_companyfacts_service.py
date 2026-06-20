@@ -69,6 +69,15 @@ METRIC_TAGS: dict[str, list[str]] = {
     "net_income": ["NetIncomeLoss"],
     "operating_income": ["OperatingIncomeLoss"],
     "operating_cash_flow": ["NetCashProvidedByUsedInOperatingActivities"],
+    "capital_expenditures": [
+        "PaymentsToAcquirePropertyPlantAndEquipment",
+        "PaymentsToAcquireProductiveAssets",
+        "CapitalExpenditures",
+    ],
+    "cash_and_equivalents": [
+        "CashAndCashEquivalentsAtCarryingValue",
+        "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+    ],
     "depreciation_and_amortization": [
         "DepreciationDepletionAndAmortization",
         "DepreciationDepletionAndAmortizationExpense",
