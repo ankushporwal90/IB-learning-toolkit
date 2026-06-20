@@ -88,7 +88,7 @@ ENERGY_COMPANIES = [
         "name": "Energy Transfer",
         "ticker": "ET",
         "sector": "Midstream",
-        "ir_url": "https://ir.energytransfer.com/events-and-presentations",
+        "ir_url": "https://ir.energytransfer.com/",
     },
     {
         "name": "Kinder Morgan",
