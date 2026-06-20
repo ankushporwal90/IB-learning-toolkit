@@ -218,13 +218,76 @@ def render_phase1_mvp() -> None:
         "profiles, financial snapshots, diligence questions, risk flags, and transaction angles."
     )
 
-    energy_tab, general_tab = st.tabs(["Houston Energy IB Workspace", "Document Research Lab"])
+    dashboard_tab, energy_tab, general_tab = st.tabs(
+        ["Company Dashboard", "Houston Energy IB Workspace", "Document Research Lab"]
+    )
+
+    with dashboard_tab:
+        render_company_dashboard()
 
     with energy_tab:
         render_energy_company_ib_assistant()
 
     with general_tab:
         render_general_filing_analyzer()
+
+
+def render_company_dashboard() -> None:
+    """Render a company-first front-end dashboard for Houston energy IB learning."""
+
+    st.markdown("#### Company Dashboard")
+    st.write(
+        "Use this tab as the front page for company screening before reading filings, "
+        "earnings releases, and investor presentations."
+    )
+
+    selected_company_label = st.selectbox(
+        "Company",
+        options=ENERGY_COMPANY_OPTIONS,
+        key="dashboard_energy_company",
+    )
+    selected_company = ENERGY_COMPANIES[ENERGY_COMPANY_OPTIONS.index(selected_company_label)]
+
+    render_energy_company_snapshot(selected_company, show_chart=True)
+    render_financial_metrics_panel(selected_company)
+
+
+def render_financial_metrics_panel(selected_company: dict[str, str]) -> None:
+    """Show IB-style financial metrics to collect and monitor."""
+
+    st.markdown("#### Financial Metrics")
+    st.caption(
+        "These are the first metrics an IB analyst would usually pull from market data, "
+        "latest filings, earnings releases, and investor presentations."
+    )
+
+    sector = selected_company["sector"]
+    common_metrics = [
+        ("Market Cap", "Equity value from share price x diluted shares"),
+        ("Enterprise Value", "Market cap + net debt and other claims"),
+        ("LTM Revenue", "Latest twelve-month revenue"),
+        ("LTM EBITDA", "Core operating cash earnings proxy"),
+        ("Net Debt / EBITDA", "Balance sheet leverage"),
+        ("FCF Yield", "Free cash flow relative to market value"),
+    ]
+    sector_metric = {
+        "Upstream": ("Production", "Oil, gas, and NGL volumes by period"),
+        "Integrated / Downstream": ("Refining Margin", "Downstream cycle and margin marker"),
+        "Midstream": ("DCF Coverage", "Distributable cash flow / distributions"),
+        "Oilfield Services": ("EBITDA Margin", "Service pricing and cost efficiency"),
+    }.get(sector)
+
+    metrics = common_metrics + ([sector_metric] if sector_metric else [])
+    metric_cols = st.columns(4)
+    for index, (label, help_text) in enumerate(metrics):
+        with metric_cols[index % 4]:
+            st.metric(label, "To source")
+            st.caption(help_text)
+
+    st.info(
+        "Next build step: connect these cards to market data and SEC/XBRL extraction so "
+        "the dashboard shows live values instead of collection prompts."
+    )
 
 
 def render_energy_company_ib_assistant() -> None:
@@ -249,7 +312,7 @@ def render_energy_company_ib_assistant() -> None:
         key="energy_report_type",
     )
     selector_cols[2].metric("Ticker", selected_company["ticker"])
-    render_energy_company_snapshot(selected_company)
+    st.caption(f"Coverage group: {selected_company['sector']}")
 
     st.markdown("#### Report Source")
     source_tab, fetch_tab = st.tabs(["Upload report", "Fetch report"])
@@ -406,7 +469,7 @@ def render_energy_company_ib_assistant() -> None:
     render_available_documents()
 
 
-def render_energy_company_snapshot(selected_company: dict[str, str]) -> None:
+def render_energy_company_snapshot(selected_company: dict[str, str], show_chart: bool = False) -> None:
     """Render the company-first Houston IB dashboard section."""
 
     ticker = selected_company["ticker"]
@@ -414,7 +477,11 @@ def render_energy_company_snapshot(selected_company: dict[str, str]) -> None:
     exchange = ENERGY_TICKER_EXCHANGES.get(ticker, "NYSE")
 
     st.markdown("#### Company Snapshot")
-    overview_col, chart_col = st.columns([1, 1.25])
+    if show_chart:
+        overview_col, chart_col = st.columns([1, 1.4])
+    else:
+        overview_col = st.container()
+        chart_col = None
 
     with overview_col:
         st.write(f"**{selected_company['name']} ({ticker})**")
@@ -428,8 +495,9 @@ def render_energy_company_snapshot(selected_company: dict[str, str]) -> None:
             "Use filings, earnings decks, and XBRL extraction below to populate actual values."
         )
 
-    with chart_col:
-        render_tradingview_chart(exchange=exchange, ticker=ticker)
+    if show_chart and chart_col is not None:
+        with chart_col:
+            render_tradingview_chart(exchange=exchange, ticker=ticker)
 
 
 def render_tradingview_chart(exchange: str, ticker: str) -> None:
@@ -438,25 +506,40 @@ def render_tradingview_chart(exchange: str, ticker: str) -> None:
     symbol = f"{exchange}:{ticker}"
     components.html(
         f'''
-        <div class="tradingview-widget-container" style="height:360px;width:100%;">
-          <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%;"></div>
-          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+        <div class="tradingview-widget-container" style="height:520px;width:100%;">
+          <div class="tradingview-widget-container__widget"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
           {{
-            "autosize": true,
-            "symbol": "{symbol}",
-            "interval": "D",
-            "timezone": "America/Chicago",
-            "theme": "light",
-            "style": "1",
+            "symbols": [["{ticker}", "{symbol}|1D"]],
+            "chartOnly": false,
+            "width": "100%",
+            "height": 500,
             "locale": "en",
-            "allow_symbol_change": false,
-            "calendar": false,
-            "support_host": "https://www.tradingview.com"
+            "colorTheme": "light",
+            "autosize": true,
+            "showVolume": true,
+            "showMA": false,
+            "hideDateRanges": false,
+            "hideMarketStatus": false,
+            "hideSymbolLogo": false,
+            "scalePosition": "right",
+            "scaleMode": "Normal",
+            "fontFamily": "Arial, sans-serif",
+            "fontSize": "12",
+            "noTimeScale": false,
+            "valuesTracking": "1",
+            "changeMode": "price-and-percent",
+            "chartType": "area",
+            "maLineColor": "#2962FF",
+            "maLineWidth": 1,
+            "lineWidth": 2,
+            "lineType": 0,
+            "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W"]
           }}
           </script>
         </div>
         ''',
-        height=380,
+        height=540,
     )
 
 
