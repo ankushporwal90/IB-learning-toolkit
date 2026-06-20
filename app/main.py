@@ -140,9 +140,6 @@ def render_energy_company_ib_assistant() -> None:
     )
     selector_cols[2].metric("Mode", "IB")
 
-    st.session_state.energy_company = selected_company
-    st.session_state.energy_report_type = selected_report_type
-
     st.markdown("#### Report Source")
     source_tab, fetch_tab = st.tabs(["Upload report", "Fetch report"])
 
