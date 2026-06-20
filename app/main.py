@@ -278,38 +278,6 @@ def render_energy_company_ib_assistant() -> None:
                 st.link_button(f"Open {sec_form} on SEC", filing.filing_url)
                 render_extraction_metrics(extraction)
 
-            if selected_report_type in {"10-K", "10-Q"}:
-                if st.button(
-                    f"Fetch both latest 10-K and 10-Q for {selected_company['ticker']}",
-                    key="energy_fetch_both_sec_reports",
-                ):
-                    with st.spinner(
-                        f"Fetching latest 10-K and 10-Q for "
-                        f"{selected_company['ticker']} from SEC EDGAR..."
-                    ):
-                        try:
-                            filings = fetch_latest_annual_and_quarterly_filings(
-                                selected_company["ticker"]
-                            )
-                        except Exception as exc:
-                            st.error(f"Could not fetch SEC filings: {exc}")
-                            return
-
-                    st.session_state.last_ticker = selected_company["ticker"]
-                    st.session_state.sec_filings = filings
-                    st.session_state.available_documents = {
-                        **st.session_state.get("available_documents", {}),
-                        **{
-                            f"Energy SEC {form_type}: {filing.display_name}": filing_to_extraction(
-                                filing
-                            )
-                            for form_type, filing in filings.items()
-                        },
-                    }
-                    st.success(
-                        f"Fetched latest 10-K and 10-Q for {selected_company['ticker']} and "
-                        "added both for analysis."
-                    )
         elif selected_report_type in {"Investor presentation", "Earnings presentation"}:
             st.info(
                 f"Search {selected_company['name']}'s investor relations page for likely "
