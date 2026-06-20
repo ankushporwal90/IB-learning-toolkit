@@ -182,25 +182,80 @@ def render_energy_company_ib_assistant() -> None:
             st.success("Uploaded report is now available in the document analysis area below.")
 
     with fetch_tab:
-        st.info(
-            "For 10-K and 10-Q reports, use the button below to send the selected ticker "
-            "to the SEC fetch workflow in the General Filing Analyzer."
-        )
         if selected_report_type in {"10-K", "10-Q"}:
+            st.info(
+                f"Fetch the latest {selected_report_type} for "
+                f"{selected_company['name']} directly from SEC EDGAR."
+            )
             if st.button(
-                f"Use {selected_company['ticker']} in SEC Fetch",
-                key="energy_use_sec_ticker",
+                f"Fetch latest {selected_report_type} for {selected_company['ticker']}",
+                key="energy_fetch_selected_sec_report",
+                type="primary",
             ):
+                with st.spinner(
+                    f"Fetching latest {selected_report_type} for "
+                    f"{selected_company['ticker']} from SEC EDGAR..."
+                ):
+                    try:
+                        filings = fetch_latest_annual_and_quarterly_filings(
+                            selected_company["ticker"]
+                        )
+                    except Exception as exc:
+                        st.error(f"Could not fetch {selected_report_type}: {exc}")
+                        return
+
+                filing = filings[selected_report_type]
+                document_label = f"Energy SEC {selected_report_type}: {filing.display_name}"
+                extraction = filing_to_extraction(filing)
                 st.session_state.last_ticker = selected_company["ticker"]
+                st.session_state.sec_filings = {
+                    **st.session_state.get("sec_filings", {}),
+                    selected_report_type: filing,
+                }
+                st.session_state.available_documents = {
+                    **st.session_state.get("available_documents", {}),
+                    document_label: extraction,
+                }
+                st.success(f"Fetched {filing.display_name} and added it for analysis.")
+                st.link_button(f"Open {selected_report_type} on SEC", filing.filing_url)
+                render_extraction_metrics(extraction)
+
+            if st.button(
+                f"Fetch both latest 10-K and 10-Q for {selected_company['ticker']}",
+                key="energy_fetch_both_sec_reports",
+            ):
+                with st.spinner(
+                    f"Fetching latest 10-K and 10-Q for "
+                    f"{selected_company['ticker']} from SEC EDGAR..."
+                ):
+                    try:
+                        filings = fetch_latest_annual_and_quarterly_filings(
+                            selected_company["ticker"]
+                        )
+                    except Exception as exc:
+                        st.error(f"Could not fetch SEC filings: {exc}")
+                        return
+
+                st.session_state.last_ticker = selected_company["ticker"]
+                st.session_state.sec_filings = filings
+                st.session_state.available_documents = {
+                    **st.session_state.get("available_documents", {}),
+                    **{
+                        f"Energy SEC {form_type}: {filing.display_name}": filing_to_extraction(
+                            filing
+                        )
+                        for form_type, filing in filings.items()
+                    },
+                }
                 st.success(
-                    f"{selected_company['ticker']} is ready. Open General Filing Analyzer > "
-                    "Fetch SEC Filings to pull the latest 10-K and 10-Q."
+                    f"Fetched latest 10-K and 10-Q for {selected_company['ticker']} and "
+                    "added both for analysis."
                 )
         else:
-            st.write(
-                "Investor presentations, earnings presentations, and acquisition press "
-                "releases can be uploaded here for now. Direct web fetching for those "
-                "document types will come in a later energy workflow step."
+            st.warning(
+                "Direct fetching for investor presentations, earnings presentations, and "
+                "acquisition press releases needs company investor-relations source mapping. "
+                "Upload those PDFs here for now; we can add IR-source fetching next."
             )
 
     st.markdown("#### Energy IB Question Bank")
