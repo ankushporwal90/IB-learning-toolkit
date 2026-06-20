@@ -51,6 +51,19 @@ from src.storage.session_store import (
 )
 
 
+ENERGY_COMPANY_OPTIONS = [
+    "Companies will be added in the next step",
+]
+
+ENERGY_REPORT_TYPES = [
+    "Investor presentation",
+    "Earnings presentation",
+    "Acquisition press release",
+    "10-K",
+    "10-Q",
+]
+
+
 def render_phase1_mvp() -> None:
     """Render the beginner SEC filing summarizer."""
 
@@ -94,6 +107,83 @@ def render_phase1_mvp() -> None:
         "financial snapshot, transaction angles, diligence questions, risk flags, and "
         "recent changes."
     )
+
+    energy_tab, general_tab = st.tabs(["Energy company IB Assistant", "General Filing Analyzer"])
+
+    with energy_tab:
+        render_energy_company_ib_assistant()
+
+    with general_tab:
+        render_general_filing_analyzer()
+
+
+def render_energy_company_ib_assistant() -> None:
+    """Render the Houston energy banking workflow shell."""
+
+    st.markdown("#### Energy Company IB Assistant")
+    st.write(
+        "A Houston energy banking workflow for upstream, downstream, midstream, and OFS "
+        "companies. Add a company list next, then use this workspace to review investor "
+        "presentations, earnings presentations, acquisition press releases, 10-Ks, and 10-Qs."
+    )
+
+    selector_cols = st.columns([2, 2, 1])
+    selected_company = selector_cols[0].selectbox(
+        "Company",
+        options=ENERGY_COMPANY_OPTIONS,
+        key="energy_company",
+    )
+    selected_report_type = selector_cols[1].selectbox(
+        "Report type",
+        options=ENERGY_REPORT_TYPES,
+        key="energy_report_type",
+    )
+    selector_cols[2].metric("Mode", "IB")
+
+    st.session_state.energy_company = selected_company
+    st.session_state.energy_report_type = selected_report_type
+
+    st.markdown("#### Report Source")
+    source_tab, fetch_tab = st.tabs(["Upload report", "Fetch report"])
+
+    with source_tab:
+        uploaded_file = st.file_uploader(
+            "Upload an energy company report PDF",
+            type=["pdf"],
+            accept_multiple_files=False,
+            key="energy_report_upload",
+        )
+        if uploaded_file is not None:
+            with st.spinner("Extracting text from uploaded energy report..."):
+                extraction = extract_pdf_text(
+                    pdf_bytes=uploaded_file.getvalue(),
+                    document_name=f"{selected_company} - {selected_report_type} - {uploaded_file.name}",
+                )
+            st.session_state.available_documents = {
+                **st.session_state.get("available_documents", {}),
+                f"Energy Upload: {uploaded_file.name}": extraction,
+            }
+            render_extraction_metrics(extraction)
+            st.success("Uploaded report is now available in the document analysis area below.")
+
+    with fetch_tab:
+        st.info(
+            "Company-specific fetch links will be added after you provide the target company "
+            "list. SEC 10-K/10-Q fetching is already available in the General Filing Analyzer."
+        )
+
+    st.markdown("#### Energy IB Question Bank")
+    st.info(
+        "Once you provide the question list, this section will generate report-specific "
+        "answers for acreage, production, reserves, commodity mix, gathering/processing, "
+        "refining margins, capex, leverage, FCF, M&A rationale, and management outlook."
+    )
+
+    render_available_documents()
+
+
+def render_general_filing_analyzer() -> None:
+    """Render the general SEC filing analyzer workflow."""
 
     input_tab, sec_tab = st.tabs(["Upload PDF", "Fetch SEC Filings"])
 
