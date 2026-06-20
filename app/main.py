@@ -58,7 +58,7 @@ ENERGY_COMPANIES = [
         "name": "Diamondback Energy",
         "ticker": "FANG",
         "sector": "Upstream",
-        "ir_url": "https://ir.diamondbackenergy.com/events-and-presentations",
+        "ir_url": "https://www.diamondbackenergy.com/investors",
     },
     {
         "name": "Permian Resources",
