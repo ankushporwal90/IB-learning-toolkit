@@ -323,7 +323,11 @@ def render_sourced_metrics(metrics_data: DashboardMetrics) -> None:
         for index, metric in enumerate(metrics_data.metrics):
             with metric_cols[index % 4]:
                 st.metric(metric.label, metric.value)
-                st.caption(f"{metric.source}. {metric.notes}")
+                if metric.period:
+                    st.caption(f"Period: {metric.period}")
+                if metric.source_detail:
+                    st.caption(f"Source: {metric.source_detail}")
+                st.caption(metric.notes)
 
     if metrics_data.limitations:
         with st.expander("Metric limitations"):

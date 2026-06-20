@@ -4,13 +4,14 @@ The dashboard combines two free student-budget sources:
 - Yahoo Finance quote endpoint for market data like price and market cap.
 - SEC XBRL companyfacts for filing-derived fundamentals like revenue, debt, cash flow, and D&A.
 
-Values can be missing because public APIs differ by company and reporting taxonomy. Missing data is
-shown as n/a rather than guessed.
+Values can be missing because public APIs differ by company and reporting taxonomy. The
+front-end only receives metrics with sourced values; missing items are captured as limitations.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -34,6 +35,8 @@ class DashboardMetric:
     value: str
     source: str
     notes: str = ""
+    period: str = ""
+    source_detail: str = ""
 
 
 @dataclass
@@ -62,7 +65,7 @@ def fetch_dashboard_metrics(
         quote = {}
         limitations.append(
             "Yahoo Finance quote data was unavailable, so market price and market cap "
-            f"are shown as n/a. Error: {type(exc).__name__}."
+            f"were not displayed. Error: {type(exc).__name__}."
         )
 
     company, facts = fetch_companyfacts(ticker=normalized_ticker, session=session)
@@ -104,6 +107,8 @@ def fetch_yahoo_quote(
 def add_market_metrics(metrics: list[DashboardMetric], quote: dict[str, Any]) -> None:
     """Append market-data metrics from a Yahoo quote payload."""
 
+    quote_period = format_quote_period(quote)
+    quote_source = "Yahoo Finance quote endpoint"
     metrics.extend(
         [
             DashboardMetric(
@@ -111,18 +116,24 @@ def add_market_metrics(metrics: list[DashboardMetric], quote: dict[str, Any]) ->
                 value=format_currency(quote.get("regularMarketPrice")),
                 source="Yahoo Finance quote",
                 notes="Latest available quote from free endpoint.",
+                period=quote_period,
+                source_detail=quote_source,
             ),
             DashboardMetric(
                 label="Market Cap",
                 value=format_compact_currency(quote.get("marketCap")),
                 source="Yahoo Finance quote",
                 notes="Equity value from public market data.",
+                period=quote_period,
+                source_detail=quote_source,
             ),
             DashboardMetric(
                 label="52W Range",
                 value=format_range(quote.get("fiftyTwoWeekLow"), quote.get("fiftyTwoWeekHigh")),
                 source="Yahoo Finance quote",
                 notes="Useful for quick trading-context scan.",
+                period=quote_period,
+                source_detail=quote_source,
             ),
         ]
     )
@@ -146,54 +157,66 @@ def add_xbrl_metrics(
 
     metrics.append(metric_from_xbrl("FY Revenue", revenue, "SEC XBRL companyfacts"))
 
-    ebitda_value = combine_metric_values([operating_income, d_and_a])
+    ebitda_inputs = [operating_income, d_and_a]
+    ebitda_value = combine_metric_values(ebitda_inputs)
     metrics.append(
         DashboardMetric(
             label="EBITDA Proxy",
             value=format_compact_currency(ebitda_value),
             source="SEC XBRL companyfacts",
             notes="Operating income + D&A. Proxy, not company-adjusted EBITDA.",
+            period=combine_metric_period(ebitda_inputs),
+            source_detail=combine_metric_source_detail(ebitda_inputs),
         )
     )
 
-    debt_value = combine_metric_values([long_term_debt, short_term_debt])
+    debt_inputs = [long_term_debt, short_term_debt]
+    debt_value = combine_metric_values(debt_inputs)
     metrics.append(
         DashboardMetric(
             label="Total Debt",
             value=format_compact_currency(debt_value),
             source="SEC XBRL companyfacts",
             notes="Long-term debt + short-term debt when available.",
+            period=combine_metric_period(debt_inputs),
+            source_detail=combine_metric_source_detail(debt_inputs),
         )
     )
 
     net_debt = debt_value - cash.value if debt_value is not None and cash is not None else None
+    net_debt_inputs = [long_term_debt, short_term_debt, cash]
     metrics.append(
         DashboardMetric(
             label="Net Debt",
             value=format_compact_currency(net_debt),
             source="SEC XBRL companyfacts",
             notes="Debt less cash and equivalents when both are available.",
+            period=combine_metric_period(net_debt_inputs),
+            source_detail=combine_metric_source_detail(net_debt_inputs),
         )
     )
 
     fcf_value = None
     if operating_cash_flow is not None and capex is not None:
         fcf_value = operating_cash_flow.value - abs(capex.value)
+    fcf_inputs = [operating_cash_flow, capex]
     metrics.append(
         DashboardMetric(
             label="FCF Proxy",
             value=format_compact_currency(fcf_value),
             source="SEC XBRL companyfacts",
             notes="Operating cash flow less capex. Proxy, not company-defined FCF.",
+            period=combine_metric_period(fcf_inputs),
+            source_detail=combine_metric_source_detail(fcf_inputs),
         )
     )
 
     if revenue is None:
         limitations.append("No recent SEC XBRL revenue fact found.")
-    if operating_income is None or d_and_a is None:
-        limitations.append("EBITDA proxy needs operating income and D&A; one or both were missing.")
-    if operating_cash_flow is None or capex is None:
-        limitations.append("FCF proxy needs operating cash flow and capex; one or both were missing.")
+    if ebitda_value is None:
+        limitations.append("EBITDA proxy was unavailable because operating income and D&A were missing.")
+    if fcf_value is None:
+        limitations.append("FCF proxy was unavailable because operating cash flow or capex was missing.")
     if debt_value is None:
         limitations.append("Debt metrics need long-term or short-term debt facts; none were found.")
     if cash is None:
@@ -219,6 +242,7 @@ def is_reliable_metric(metric: DashboardMetric) -> bool:
     value = metric.value.strip().lower()
     return value not in {"", "n/a", "nan", "none"}
 
+
 def metric_from_xbrl(label: str, metric: XbrlMetric | None, source: str) -> DashboardMetric:
     """Create a display metric from an XBRL fact."""
 
@@ -228,8 +252,46 @@ def metric_from_xbrl(label: str, metric: XbrlMetric | None, source: str) -> Dash
         label=label,
         value=format_compact_currency(metric.value),
         source=source,
-        notes=f"FY {metric.fiscal_year}, {metric.form}, filed {metric.filed}; tag {metric.tag}.",
+        notes="As reported in SEC XBRL companyfacts.",
+        period=format_metric_period(metric),
+        source_detail=format_metric_source_detail(metric),
     )
+
+
+def format_quote_period(quote: dict[str, Any]) -> str:
+    """Return quote timing when Yahoo provides it."""
+
+    market_time = quote.get("regularMarketTime")
+    if market_time is None:
+        return "Latest available quote"
+    timestamp = datetime.fromtimestamp(float(market_time), tz=timezone.utc)
+    return f"Quote timestamp: {timestamp:%Y-%m-%d %H:%M UTC}"
+
+
+def format_metric_period(metric: XbrlMetric) -> str:
+    """Describe the fiscal period for one XBRL fact."""
+
+    return f"FY {metric.fiscal_year} {metric.fiscal_period}"
+
+
+def format_metric_source_detail(metric: XbrlMetric) -> str:
+    """Describe the SEC filing source for one XBRL fact."""
+
+    return f"{metric.form}, filed {metric.filed}, tag {metric.tag}"
+
+
+def combine_metric_period(metrics: list[XbrlMetric | None]) -> str:
+    """Combine fiscal periods used by a derived metric."""
+
+    periods = sorted({format_metric_period(metric) for metric in metrics if metric is not None})
+    return "; ".join(periods)
+
+
+def combine_metric_source_detail(metrics: list[XbrlMetric | None]) -> str:
+    """Combine source filings and tags used by a derived metric."""
+
+    details = [format_metric_source_detail(metric) for metric in metrics if metric is not None]
+    return " | ".join(details)
 
 
 def combine_metric_values(metrics: list[XbrlMetric | None]) -> float | None:

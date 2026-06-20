@@ -68,6 +68,8 @@ def test_add_market_metrics_formats_quote_values() -> None:
     assert metrics[0].value == "$18.25"
     assert metrics[1].value == "$62.0B"
     assert metrics[2].value == "$14.00 - $21.50"
+    assert metrics[0].period == "Latest available quote"
+    assert metrics[0].source_detail == "Yahoo Finance quote endpoint"
 
 
 def test_format_helpers_handle_missing_and_negative_values() -> None:
