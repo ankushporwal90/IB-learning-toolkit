@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -124,6 +125,57 @@ ENERGY_REPORT_TYPES = [
     "10-Q",
 ]
 
+ENERGY_COMPANY_OVERVIEWS = {
+    "FANG": "Diamondback Energy is an independent upstream operator focused on oil and gas development in the Permian Basin, especially the Midland Basin. Houston energy bankers usually read its materials for production growth, drilling inventory, cost structure, FCF, shareholder returns, and acquisition strategy.",
+    "PR": "Permian Resources is an independent upstream company focused on unconventional oil and gas assets in the Permian Basin. Key IB learning angles include acreage quality, inventory depth, well productivity, operating costs, leverage, and consolidation strategy.",
+    "DVN": "Devon Energy is a large independent upstream company with a multi-basin U.S. asset base. Bankers track its production mix, capital discipline, decline profile, free cash flow, dividends, buybacks, and portfolio optimization.",
+    "XOM": "Exxon Mobil is a global integrated energy major across upstream, downstream, chemicals, LNG, and low-carbon initiatives. IB analysis focuses on capital allocation, refining and chemical cycles, project pipeline, Guyana, Permian growth, balance sheet capacity, and strategic M&A.",
+    "CVX": "Chevron is a global integrated energy major with upstream, downstream, LNG, and chemicals exposure. Bankers review production growth, reserve replacement, refining margins, shareholder returns, leverage, and large-project execution.",
+    "ET": "Energy Transfer is a midstream energy company with natural gas, NGL, crude oil, refined products, and interstate pipeline assets. IB work often focuses on EBITDA stability, leverage, distribution coverage, project backlog, contract mix, and basin connectivity.",
+    "KMI": "Kinder Morgan is a large North American midstream company with natural gas pipelines, products pipelines, terminals, and CO2 assets. Key banking topics include contracted cash flow, leverage, backlog, dividend capacity, and gas demand from LNG and power generation.",
+    "SLB": "SLB is a global oilfield services and technology company serving upstream customers across drilling, completions, production, and digital. Bankers evaluate international activity, margins, technology differentiation, backlog, capital intensity, and cycle exposure.",
+    "HAL": "Halliburton is a major oilfield services company with strong completions, production, drilling, and evaluation exposure. Houston bankers track North America activity, international growth, margins, pricing, capex cycles, and customer spending trends.",
+}
+
+ENERGY_TICKER_EXCHANGES = {
+    "FANG": "NASDAQ",
+    "PR": "NYSE",
+    "DVN": "NYSE",
+    "XOM": "NYSE",
+    "CVX": "NYSE",
+    "ET": "NYSE",
+    "KMI": "NYSE",
+    "SLB": "NYSE",
+    "HAL": "NYSE",
+}
+
+ENERGY_SECTOR_METRIC_FOCUS = {
+    "Upstream": [
+        "Production mix and growth",
+        "Lease operating expense",
+        "Capex and drilling inventory",
+        "Free cash flow and leverage",
+    ],
+    "Integrated / Downstream": [
+        "Upstream volumes and reserves",
+        "Refining and chemicals margin cycle",
+        "Capital allocation and buybacks",
+        "Balance sheet capacity for M&A",
+    ],
+    "Midstream": [
+        "Adjusted EBITDA and DCF",
+        "Leverage and distribution coverage",
+        "Contract mix and volume exposure",
+        "Project backlog and basin footprint",
+    ],
+    "Oilfield Services": [
+        "Revenue by geography and segment",
+        "Margins and pricing power",
+        "Customer capex cycle exposure",
+        "Backlog, technology, and asset intensity",
+    ],
+}
+
 
 def render_phase1_mvp() -> None:
     """Render the beginner SEC filing summarizer."""
@@ -137,8 +189,8 @@ def render_phase1_mvp() -> None:
 
     st.title("IB Learning Toolkit")
     st.caption(
-        "Phase 5: upload or fetch SEC filings, extract financials, ask cited RAG questions, "
-        "save research sessions, and generate IB-style filing briefs."
+        "Houston energy IB learning workspace for company screening, document review, "
+        "financial analysis, RAG Q&A, and banker-style research briefs."
     )
 
     st.warning(
@@ -147,29 +199,26 @@ def render_phase1_mvp() -> None:
     )
 
     with st.sidebar:
-        st.header("Phase 5")
+        st.header("Houston Energy IB")
         st.write("Current scope:")
-        st.write("- PDF upload")
-        st.write("- Latest 10-K and 10-Q fetch")
-        st.write("- Text extraction")
-        st.write("- Groq summary")
-        st.write("- Structured finance analysis")
-        st.write("- ChromaDB RAG with citations")
-        st.write("- RAG-powered finance tabs")
-        st.write("- Hybrid retrieval for exact metrics")
+        st.write("- Houston energy coverage universe")
+        st.write("- Company snapshot and chart")
+        st.write("- Investor and earnings presentation workflow")
+        st.write("- 10-K, 10-Q, and earnings 8-K review")
         st.write("- XBRL financial statement extraction")
-        st.write("- Saved analysis sessions")
-        st.write("- IB filing brief workflow")
+        st.write("- RAG Q&A with citations")
+        st.write("- IB-style filing brief workflow")
+        st.write("- Saved research sessions")
         render_memory_sidebar()
 
-    st.markdown("#### Why this phase matters")
+    st.markdown("#### Houston Energy IB Learning Focus")
     st.write(
-        "Phase 5 turns the analysis into banker workflow outputs: company profile, "
-        "financial snapshot, transaction angles, diligence questions, risk flags, and "
-        "recent changes."
+        "Start with a public Houston energy coverage universe, review the latest investor "
+        "materials and filings, then convert source documents into banker-style company "
+        "profiles, financial snapshots, diligence questions, risk flags, and transaction angles."
     )
 
-    energy_tab, general_tab = st.tabs(["Energy company IB Assistant", "General Filing Analyzer"])
+    energy_tab, general_tab = st.tabs(["Houston Energy IB Workspace", "Document Research Lab"])
 
     with energy_tab:
         render_energy_company_ib_assistant()
@@ -181,11 +230,10 @@ def render_phase1_mvp() -> None:
 def render_energy_company_ib_assistant() -> None:
     """Render the Houston energy banking workflow shell."""
 
-    st.markdown("#### Energy Company IB Assistant")
+    st.markdown("#### Houston Energy Company Workspace")
     st.write(
-        "A Houston energy banking workflow for upstream, downstream, midstream, and OFS "
-        "companies. Add a company list next, then use this workspace to review investor "
-        "presentations, earnings presentations, acquisition press releases, 10-Ks, and 10-Qs."
+        "Choose a Houston-relevant energy company, understand what bankers track, then "
+        "pull the latest public materials for analysis."
     )
 
     selector_cols = st.columns([2, 2, 1])
@@ -201,7 +249,7 @@ def render_energy_company_ib_assistant() -> None:
         key="energy_report_type",
     )
     selector_cols[2].metric("Ticker", selected_company["ticker"])
-    st.caption(f"Coverage group: {selected_company['sector']}")
+    render_energy_company_snapshot(selected_company)
 
     st.markdown("#### Report Source")
     source_tab, fetch_tab = st.tabs(["Upload report", "Fetch report"])
@@ -356,6 +404,60 @@ def render_energy_company_ib_assistant() -> None:
     )
 
     render_available_documents()
+
+
+def render_energy_company_snapshot(selected_company: dict[str, str]) -> None:
+    """Render the company-first Houston IB dashboard section."""
+
+    ticker = selected_company["ticker"]
+    sector = selected_company["sector"]
+    exchange = ENERGY_TICKER_EXCHANGES.get(ticker, "NYSE")
+
+    st.markdown("#### Company Snapshot")
+    overview_col, chart_col = st.columns([1, 1.25])
+
+    with overview_col:
+        st.write(f"**{selected_company['name']} ({ticker})**")
+        st.caption(f"Coverage group: {sector}")
+        st.write(ENERGY_COMPANY_OVERVIEWS.get(ticker, "Company overview will be added."))
+
+        st.markdown("##### Banker Metric Focus")
+        for metric in ENERGY_SECTOR_METRIC_FOCUS.get(sector, []):
+            st.write(f"- {metric}")
+        st.caption(
+            "Use filings, earnings decks, and XBRL extraction below to populate actual values."
+        )
+
+    with chart_col:
+        render_tradingview_chart(exchange=exchange, ticker=ticker)
+
+
+def render_tradingview_chart(exchange: str, ticker: str) -> None:
+    """Embed a lightweight public share price chart for the selected ticker."""
+
+    symbol = f"{exchange}:{ticker}"
+    components.html(
+        f'''
+        <div class="tradingview-widget-container" style="height:360px;width:100%;">
+          <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%;"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+          {{
+            "autosize": true,
+            "symbol": "{symbol}",
+            "interval": "D",
+            "timezone": "America/Chicago",
+            "theme": "light",
+            "style": "1",
+            "locale": "en",
+            "allow_symbol_change": false,
+            "calendar": false,
+            "support_host": "https://www.tradingview.com"
+          }}
+          </script>
+        </div>
+        ''',
+        height=380,
+    )
 
 
 def render_general_filing_analyzer() -> None:
