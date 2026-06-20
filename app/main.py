@@ -51,8 +51,21 @@ from src.storage.session_store import (
 )
 
 
+ENERGY_COMPANIES = [
+    {"name": "Diamondback Energy", "ticker": "FANG", "sector": "Upstream"},
+    {"name": "Permian Resources", "ticker": "PR", "sector": "Upstream"},
+    {"name": "Devon Energy", "ticker": "DVN", "sector": "Upstream"},
+    {"name": "Exxon Mobil", "ticker": "XOM", "sector": "Integrated / Downstream"},
+    {"name": "Chevron", "ticker": "CVX", "sector": "Integrated / Downstream"},
+    {"name": "Energy Transfer", "ticker": "ET", "sector": "Midstream"},
+    {"name": "Kinder Morgan", "ticker": "KMI", "sector": "Midstream"},
+    {"name": "SLB", "ticker": "SLB", "sector": "Oilfield Services"},
+    {"name": "Halliburton", "ticker": "HAL", "sector": "Oilfield Services"},
+]
+
 ENERGY_COMPANY_OPTIONS = [
-    "Companies will be added in the next step",
+    f"{company['name']} ({company['ticker']}) - {company['sector']}"
+    for company in ENERGY_COMPANIES
 ]
 
 ENERGY_REPORT_TYPES = [
@@ -128,17 +141,19 @@ def render_energy_company_ib_assistant() -> None:
     )
 
     selector_cols = st.columns([2, 2, 1])
-    selected_company = selector_cols[0].selectbox(
+    selected_company_label = selector_cols[0].selectbox(
         "Company",
         options=ENERGY_COMPANY_OPTIONS,
         key="energy_company",
     )
+    selected_company = ENERGY_COMPANIES[ENERGY_COMPANY_OPTIONS.index(selected_company_label)]
     selected_report_type = selector_cols[1].selectbox(
         "Report type",
         options=ENERGY_REPORT_TYPES,
         key="energy_report_type",
     )
-    selector_cols[2].metric("Mode", "IB")
+    selector_cols[2].metric("Ticker", selected_company["ticker"])
+    st.caption(f"Coverage group: {selected_company['sector']}")
 
     st.markdown("#### Report Source")
     source_tab, fetch_tab = st.tabs(["Upload report", "Fetch report"])
@@ -154,7 +169,10 @@ def render_energy_company_ib_assistant() -> None:
             with st.spinner("Extracting text from uploaded energy report..."):
                 extraction = extract_pdf_text(
                     pdf_bytes=uploaded_file.getvalue(),
-                    document_name=f"{selected_company} - {selected_report_type} - {uploaded_file.name}",
+                    document_name=(
+                        f"{selected_company['name']} ({selected_company['ticker']}) - "
+                        f"{selected_report_type} - {uploaded_file.name}"
+                    ),
                 )
             st.session_state.available_documents = {
                 **st.session_state.get("available_documents", {}),
@@ -165,9 +183,25 @@ def render_energy_company_ib_assistant() -> None:
 
     with fetch_tab:
         st.info(
-            "Company-specific fetch links will be added after you provide the target company "
-            "list. SEC 10-K/10-Q fetching is already available in the General Filing Analyzer."
+            "For 10-K and 10-Q reports, use the button below to send the selected ticker "
+            "to the SEC fetch workflow in the General Filing Analyzer."
         )
+        if selected_report_type in {"10-K", "10-Q"}:
+            if st.button(
+                f"Use {selected_company['ticker']} in SEC Fetch",
+                key="energy_use_sec_ticker",
+            ):
+                st.session_state.last_ticker = selected_company["ticker"]
+                st.success(
+                    f"{selected_company['ticker']} is ready. Open General Filing Analyzer > "
+                    "Fetch SEC Filings to pull the latest 10-K and 10-Q."
+                )
+        else:
+            st.write(
+                "Investor presentations, earnings presentations, and acquisition press "
+                "releases can be uploaded here for now. Direct web fetching for those "
+                "document types will come in a later energy workflow step."
+            )
 
     st.markdown("#### Energy IB Question Bank")
     st.info(
