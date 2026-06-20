@@ -59,6 +59,22 @@ def test_find_latest_filing_metadata_returns_requested_form() -> None:
     assert metadata["form"] == "10-Q"
 
 
+
+
+def test_find_latest_filing_metadata_filters_by_item_when_requested() -> None:
+    filings = {
+        "form": ["8-K", "8-K"],
+        "accessionNumber": ["general", "earnings"],
+        "filingDate": ["2026-01-01", "2026-02-01"],
+        "primaryDocument": ["general.htm", "earnings.htm"],
+        "items": ["7.01,9.01", "2.02,9.01"],
+    }
+
+    metadata = find_latest_filing_metadata(filings, "8-K", item_filter="2.02")
+
+    assert metadata["accession_number"] == "earnings"
+    assert metadata["primary_document"] == "earnings.htm"
+
 def test_html_to_text_removes_tags_and_normalizes_spacing() -> None:
     text = html_to_text("<html><body><h1>Revenue</h1><p> increased   year over year.</p></body></html>")
 

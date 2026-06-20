@@ -35,9 +35,11 @@ from src.services.rag_financial_analysis_service import (
     RagSectionAnalysis,
     analyze_financial_document_with_rag,
 )
+from src.services.ir_document_service import discover_ir_pdf_links, download_ir_pdf
 from src.services.phase1_filing_summary import extract_pdf_text, summarize_filing
 from src.services.sec_edgar_service import (
     fetch_latest_annual_and_quarterly_filings,
+    fetch_latest_earnings_8k,
     filing_to_extraction,
 )
 from src.storage.session_store import (
@@ -52,15 +54,60 @@ from src.storage.session_store import (
 
 
 ENERGY_COMPANIES = [
-    {"name": "Diamondback Energy", "ticker": "FANG", "sector": "Upstream"},
-    {"name": "Permian Resources", "ticker": "PR", "sector": "Upstream"},
-    {"name": "Devon Energy", "ticker": "DVN", "sector": "Upstream"},
-    {"name": "Exxon Mobil", "ticker": "XOM", "sector": "Integrated / Downstream"},
-    {"name": "Chevron", "ticker": "CVX", "sector": "Integrated / Downstream"},
-    {"name": "Energy Transfer", "ticker": "ET", "sector": "Midstream"},
-    {"name": "Kinder Morgan", "ticker": "KMI", "sector": "Midstream"},
-    {"name": "SLB", "ticker": "SLB", "sector": "Oilfield Services"},
-    {"name": "Halliburton", "ticker": "HAL", "sector": "Oilfield Services"},
+    {
+        "name": "Diamondback Energy",
+        "ticker": "FANG",
+        "sector": "Upstream",
+        "ir_url": "https://ir.diamondbackenergy.com/events-and-presentations",
+    },
+    {
+        "name": "Permian Resources",
+        "ticker": "PR",
+        "sector": "Upstream",
+        "ir_url": "https://www.permianres.com/investor-relations/events-presentations/default.aspx",
+    },
+    {
+        "name": "Devon Energy",
+        "ticker": "DVN",
+        "sector": "Upstream",
+        "ir_url": "https://investors.devonenergy.com/events-and-presentations/default.aspx",
+    },
+    {
+        "name": "Exxon Mobil",
+        "ticker": "XOM",
+        "sector": "Integrated / Downstream",
+        "ir_url": "https://investor.exxonmobil.com/news-events/events-presentations",
+    },
+    {
+        "name": "Chevron",
+        "ticker": "CVX",
+        "sector": "Integrated / Downstream",
+        "ir_url": "https://www.chevron.com/investors/events-presentations",
+    },
+    {
+        "name": "Energy Transfer",
+        "ticker": "ET",
+        "sector": "Midstream",
+        "ir_url": "https://ir.energytransfer.com/events-and-presentations",
+    },
+    {
+        "name": "Kinder Morgan",
+        "ticker": "KMI",
+        "sector": "Midstream",
+        "ir_url": "https://ir.kindermorgan.com/events-and-presentations",
+    },
+    {
+        "name": "SLB",
+        "ticker": "SLB",
+        "sector": "Oilfield Services",
+        "ir_url": "https://investorcenter.slb.com/news-releases/events-presentations",
+    },
+    {
+        "name": "Halliburton",
+        "ticker": "HAL",
+        "sector": "Oilfield Services",
+        "ir_url": "https://ir.halliburton.com/news-and-events/events-presentations",
+    },
 ]
 
 ENERGY_COMPANY_OPTIONS = [
@@ -72,6 +119,7 @@ ENERGY_REPORT_TYPES = [
     "Investor presentation",
     "Earnings presentation",
     "Acquisition press release",
+    "Earnings press release (8-K)",
     "10-K",
     "10-Q",
 ]
@@ -182,14 +230,21 @@ def render_energy_company_ib_assistant() -> None:
             st.success("Uploaded report is now available in the document analysis area below.")
 
     with fetch_tab:
-        if selected_report_type in {"10-K", "10-Q"}:
+        if selected_report_type in {"10-K", "10-Q", "Earnings press release (8-K)"}:
+            sec_form = "8-K" if selected_report_type == "Earnings press release (8-K)" else selected_report_type
             st.info(
                 f"Fetch the latest {selected_report_type} for "
                 f"{selected_company['name']} directly from SEC EDGAR."
             )
+            if selected_report_type == "Earnings press release (8-K)":
+                st.caption(
+                    "The app prefers an earnings-related 8-K with Item 2.02 when SEC metadata "
+                    "provides it, then falls back to the latest 8-K."
+                )
+
             if st.button(
                 f"Fetch latest {selected_report_type} for {selected_company['ticker']}",
-                key="energy_fetch_selected_sec_report",
+                key="energy_fetch_selected_report",
                 type="primary",
             ):
                 with st.spinner(
@@ -197,65 +252,121 @@ def render_energy_company_ib_assistant() -> None:
                     f"{selected_company['ticker']} from SEC EDGAR..."
                 ):
                     try:
-                        filings = fetch_latest_annual_and_quarterly_filings(
-                            selected_company["ticker"]
-                        )
+                        if selected_report_type == "Earnings press release (8-K)":
+                            filing = fetch_latest_earnings_8k(selected_company["ticker"])
+                        else:
+                            filings = fetch_latest_annual_and_quarterly_filings(
+                                selected_company["ticker"]
+                            )
+                            filing = filings[selected_report_type]
                     except Exception as exc:
                         st.error(f"Could not fetch {selected_report_type}: {exc}")
                         return
 
-                filing = filings[selected_report_type]
-                document_label = f"Energy SEC {selected_report_type}: {filing.display_name}"
+                document_label = f"Energy SEC {sec_form}: {filing.display_name}"
                 extraction = filing_to_extraction(filing)
                 st.session_state.last_ticker = selected_company["ticker"]
                 st.session_state.sec_filings = {
                     **st.session_state.get("sec_filings", {}),
-                    selected_report_type: filing,
+                    sec_form: filing,
                 }
                 st.session_state.available_documents = {
                     **st.session_state.get("available_documents", {}),
                     document_label: extraction,
                 }
                 st.success(f"Fetched {filing.display_name} and added it for analysis.")
-                st.link_button(f"Open {selected_report_type} on SEC", filing.filing_url)
+                st.link_button(f"Open {sec_form} on SEC", filing.filing_url)
                 render_extraction_metrics(extraction)
 
-            if st.button(
-                f"Fetch both latest 10-K and 10-Q for {selected_company['ticker']}",
-                key="energy_fetch_both_sec_reports",
-            ):
-                with st.spinner(
-                    f"Fetching latest 10-K and 10-Q for "
-                    f"{selected_company['ticker']} from SEC EDGAR..."
+            if selected_report_type in {"10-K", "10-Q"}:
+                if st.button(
+                    f"Fetch both latest 10-K and 10-Q for {selected_company['ticker']}",
+                    key="energy_fetch_both_sec_reports",
                 ):
+                    with st.spinner(
+                        f"Fetching latest 10-K and 10-Q for "
+                        f"{selected_company['ticker']} from SEC EDGAR..."
+                    ):
+                        try:
+                            filings = fetch_latest_annual_and_quarterly_filings(
+                                selected_company["ticker"]
+                            )
+                        except Exception as exc:
+                            st.error(f"Could not fetch SEC filings: {exc}")
+                            return
+
+                    st.session_state.last_ticker = selected_company["ticker"]
+                    st.session_state.sec_filings = filings
+                    st.session_state.available_documents = {
+                        **st.session_state.get("available_documents", {}),
+                        **{
+                            f"Energy SEC {form_type}: {filing.display_name}": filing_to_extraction(
+                                filing
+                            )
+                            for form_type, filing in filings.items()
+                        },
+                    }
+                    st.success(
+                        f"Fetched latest 10-K and 10-Q for {selected_company['ticker']} and "
+                        "added both for analysis."
+                    )
+        elif selected_report_type in {"Investor presentation", "Earnings presentation"}:
+            st.info(
+                f"Search {selected_company['name']}'s investor relations page for likely "
+                f"{selected_report_type.lower()} PDFs."
+            )
+            st.link_button("Open company IR source page", selected_company["ir_url"])
+            if st.button(
+                f"Find and fetch latest {selected_report_type.lower()}",
+                key="energy_fetch_ir_presentation",
+                type="primary",
+            ):
+                with st.spinner(f"Searching {selected_company['name']} investor relations PDFs..."):
                     try:
-                        filings = fetch_latest_annual_and_quarterly_filings(
-                            selected_company["ticker"]
+                        candidates = discover_ir_pdf_links(
+                            selected_company["ir_url"],
+                            selected_report_type,
                         )
                     except Exception as exc:
-                        st.error(f"Could not fetch SEC filings: {exc}")
+                        st.error(f"Could not search company IR page: {type(exc).__name__}: {exc}")
                         return
 
+                if not candidates:
+                    st.warning(
+                        "No matching PDF links were found automatically. Some IR sites load "
+                        "documents with JavaScript, so use the source page link or upload the PDF."
+                    )
+                    return
+
+                candidate = candidates[0]
+                with st.spinner(f"Downloading {candidate.title}..."):
+                    try:
+                        pdf_bytes = download_ir_pdf(candidate)
+                        extraction = extract_pdf_text(
+                            pdf_bytes=pdf_bytes,
+                            document_name=(
+                                f"{selected_company['name']} ({selected_company['ticker']}) - "
+                                f"{selected_report_type} - {candidate.title}"
+                            ),
+                        )
+                    except Exception as exc:
+                        st.error(f"Could not download or parse IR PDF: {type(exc).__name__}: {exc}")
+                        st.link_button("Open PDF manually", candidate.url)
+                        return
+
+                document_label = f"Energy IR {selected_report_type}: {candidate.title}"
                 st.session_state.last_ticker = selected_company["ticker"]
-                st.session_state.sec_filings = filings
                 st.session_state.available_documents = {
                     **st.session_state.get("available_documents", {}),
-                    **{
-                        f"Energy SEC {form_type}: {filing.display_name}": filing_to_extraction(
-                            filing
-                        )
-                        for form_type, filing in filings.items()
-                    },
+                    document_label: extraction,
                 }
-                st.success(
-                    f"Fetched latest 10-K and 10-Q for {selected_company['ticker']} and "
-                    "added both for analysis."
-                )
+                st.success(f"Fetched {candidate.title} and added it for analysis.")
+                st.link_button("Open source PDF", candidate.url)
+                render_extraction_metrics(extraction)
         else:
             st.warning(
-                "Direct fetching for investor presentations, earnings presentations, and "
-                "acquisition press releases needs company investor-relations source mapping. "
-                "Upload those PDFs here for now; we can add IR-source fetching next."
+                "Acquisition press releases are not standardized across SEC and IR sites yet. "
+                "Upload the PDF for now; next we can add deal-news and 8-K exhibit search."
             )
 
     st.markdown("#### Energy IB Question Bank")

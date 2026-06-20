@@ -70,15 +70,31 @@ class SecTextParser(HTMLParser):
 def fetch_latest_annual_and_quarterly_filings(ticker: str) -> dict[str, SecFiling]:
     """Fetch the latest 10-K and latest 10-Q for a ticker."""
 
+    return {
+        "10-K": fetch_latest_filing(ticker, "10-K"),
+        "10-Q": fetch_latest_filing(ticker, "10-Q"),
+    }
+
+
+def fetch_latest_filing(ticker: str, form_type: str) -> SecFiling:
+    """Fetch the latest SEC filing for a ticker and form type."""
+
     company = lookup_company_by_ticker(ticker)
     filings = get_recent_filings(company)
+    metadata = find_latest_filing_metadata(filings, form_type)
+    return download_filing(company=company, metadata=metadata)
 
-    latest_filings: dict[str, SecFiling] = {}
-    for form_type in ("10-K", "10-Q"):
-        metadata = find_latest_filing_metadata(filings, form_type)
-        latest_filings[form_type] = download_filing(company=company, metadata=metadata)
 
-    return latest_filings
+def fetch_latest_earnings_8k(ticker: str) -> SecFiling:
+    """Fetch the latest earnings-related 8-K, preferring Item 2.02 when available."""
+
+    company = lookup_company_by_ticker(ticker)
+    filings = get_recent_filings(company)
+    try:
+        metadata = find_latest_filing_metadata(filings, "8-K", item_filter="2.02")
+    except ValueError:
+        metadata = find_latest_filing_metadata(filings, "8-K")
+    return download_filing(company=company, metadata=metadata)
 
 
 def lookup_company_by_ticker(ticker: str, session: requests.Session | None = None) -> SecCompany:
@@ -123,20 +139,29 @@ def get_recent_filings(
     return response.json()["filings"]["recent"]
 
 
-def find_latest_filing_metadata(filings: dict[str, list[Any]], form_type: str) -> dict[str, Any]:
+def find_latest_filing_metadata(
+    filings: dict[str, list[Any]],
+    form_type: str,
+    item_filter: str | None = None,
+) -> dict[str, Any]:
     """Find the latest filing row for a specific SEC form type."""
 
     forms = filings.get("form", [])
+    items = filings.get("items", [])
     for index, form in enumerate(forms):
-        if form == form_type:
-            return {
-                "accession_number": filings["accessionNumber"][index],
-                "filing_date": filings["filingDate"][index],
-                "primary_document": filings["primaryDocument"][index],
-                "form": form,
-            }
+        if form != form_type:
+            continue
+        if item_filter and item_filter not in str(items[index] if index < len(items) else ""):
+            continue
+        return {
+            "accession_number": filings["accessionNumber"][index],
+            "filing_date": filings["filingDate"][index],
+            "primary_document": filings["primaryDocument"][index],
+            "form": form,
+        }
 
-    raise ValueError(f"No recent {form_type} filing was found for this company.")
+    item_message = f" with Item {item_filter}" if item_filter else ""
+    raise ValueError(f"No recent {form_type}{item_message} filing was found for this company.")
 
 
 def download_filing(
