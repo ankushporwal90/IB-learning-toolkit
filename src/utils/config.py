@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     """Environment variables used by the application."""
 
     groq_api_key: str = ""
-    groq_model: str = "llama-3.1-8b-instant"
+    groq_model: str = "openai/gpt-oss-20b"
     app_env: str = "development"
     log_level: str = "INFO"
     sec_user_agent: str = "IBLearningToolkit your.email@example.com"
